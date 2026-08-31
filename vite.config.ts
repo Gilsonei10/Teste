@@ -24,7 +24,6 @@ function fetchUrlWithRedirects(
       const client = isHttps ? https : http;
       const agent = isHttps ? httpsAgent : httpAgent;
 
-      // Clean IPTV player headers (NO browser headers to avoid anti-web scraping firewalls)
       const headers: Record<string, string> = {
         'Host': urlObj.host,
         'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
@@ -44,7 +43,6 @@ function fetchUrlWithRedirects(
           agent,
         },
         res => {
-          // Handle 3xx redirects
           if ([301, 302, 303, 307, 308].includes(res.statusCode || 0) && res.headers.location) {
             const redirectLocation = res.headers.location.startsWith('http')
               ? res.headers.location
@@ -74,7 +72,6 @@ function corsProxyPlugin(): Plugin {
     name: 'vite-cors-proxy-plugin',
     configureServer(server) {
       server.middlewares.use('/proxy', async (req, res) => {
-        // Handle OPTIONS
         if (req.method === 'OPTIONS') {
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -116,7 +113,6 @@ function corsProxyPlugin(): Plugin {
           const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();
           console.log(`[PROXY] ${req.method} ${finalUrl} -> Status ${proxyRes.statusCode} (${contentType})`);
 
-          // Open CORS headers
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', '*');
@@ -127,6 +123,22 @@ function corsProxyPlugin(): Plugin {
           }
           if (proxyRes.headers['accept-ranges']) {
             res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
+          }
+
+          // If downloading raw M3U playlist file (get.php, m3u_plus), pipe directly with zero delay!
+          const isM3uPlaylistFile =
+            finalUrl.includes('get.php') ||
+            finalUrl.includes('type=m3u') ||
+            finalUrl.includes('player_api.php') ||
+            contentType.includes('octet-stream');
+
+          if (isM3uPlaylistFile) {
+            res.statusCode = proxyRes.statusCode || 200;
+            if (proxyRes.headers['content-type']) {
+              res.setHeader('Content-Type', proxyRes.headers['content-type']);
+            }
+            proxyRes.pipe(res);
+            return;
           }
 
           let hasHandledFirstChunk = false;
@@ -184,7 +196,6 @@ function corsProxyPlugin(): Plugin {
                 res.end(rewritten);
               });
             } else {
-              // Raw binary stream (MPEG-TS, MP4, FLV)
               if (firstChunk[0] === 0x47) {
                 res.setHeader('Content-Type', 'video/mp2t');
               } else if (proxyRes.headers['content-type']) {
@@ -222,7 +233,6 @@ function corsProxyPlugin(): Plugin {
   };
 }
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), corsProxyPlugin()],
   server: {

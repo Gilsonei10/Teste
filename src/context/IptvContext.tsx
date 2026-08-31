@@ -224,16 +224,6 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: Date.now(),
         };
 
-        StorageService.saveCachedData({
-          playlistId: playlist.id,
-          liveCategories: liveCats,
-          liveChannels: liveStreams,
-          movieCategories: movieCats,
-          movies: movieStreams,
-          seriesCategories: seriesCats,
-          series: seriesItems,
-        });
-
         StorageService.savePlaylist(playlist);
         setActivePlaylistState(playlist);
         setSavedPlaylists(StorageService.getPlaylists());
@@ -308,16 +298,6 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: Date.now(),
         };
 
-        StorageService.saveCachedData({
-          playlistId: playlist.id,
-          liveCategories: parsed.liveCategories,
-          liveChannels: parsed.liveChannels,
-          movieCategories: parsed.movieCategories,
-          movies: parsed.movies,
-          seriesCategories: parsed.seriesCategories,
-          series: parsed.series,
-        });
-
         StorageService.savePlaylist(playlist);
         setActivePlaylistState(playlist);
         setSavedPlaylists(StorageService.getPlaylists());
@@ -350,15 +330,6 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLiveChannels(parsed.liveChannels);
             setMovies(parsed.movies);
             setSeriesList(parsed.series);
-            StorageService.saveCachedData({
-              playlistId: active.id,
-              liveCategories: parsed.liveCategories,
-              liveChannels: parsed.liveChannels,
-              movieCategories: parsed.movieCategories,
-              movies: parsed.movies,
-              seriesCategories: parsed.seriesCategories,
-              series: parsed.series,
-            });
             return parsed;
           }
         }
@@ -540,19 +511,6 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const active = StorageService.getActivePlaylist();
     if (active) {
-      const cached = StorageService.getCachedData();
-      if (cached && (cached.playlistId === active.id || active.type === 'm3u_url')) {
-        if (cached.liveChannels && cached.liveChannels.length > 0) {
-          setLiveCategories(cached.liveCategories || []);
-          setLiveChannels(cached.liveChannels || []);
-          setMovieCategories(cached.movieCategories || []);
-          setMovies(cached.movies || []);
-          setSeriesCategories(cached.seriesCategories || []);
-          setSeriesList(cached.series || []);
-          return;
-        }
-      }
-
       if (active.type === 'demo') {
         loadDemoData();
       } else if (active.type === 'xtream' && active.credentials) {

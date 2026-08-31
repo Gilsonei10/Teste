@@ -7,7 +7,6 @@ const STORAGE_KEYS = {
   SETTINGS: 'iptv_settings',
   WATCH_HISTORY: 'iptv_watch_history',
   LAST_CHANNEL: 'iptv_last_channel',
-  CACHED_DATA: 'iptv_cached_data',
 };
 
 export const defaultSettings: AppSettings = {
@@ -70,7 +69,6 @@ export const StorageService = {
       const active = this.getActivePlaylist();
       if (active?.id === id) {
         localStorage.removeItem(STORAGE_KEYS.ACTIVE_PLAYLIST);
-        sessionStorage.removeItem(STORAGE_KEYS.CACHED_DATA);
       }
     } catch (e) {
       console.error('Error removing playlist', e);
@@ -92,27 +90,9 @@ export const StorageService = {
         localStorage.setItem(STORAGE_KEYS.ACTIVE_PLAYLIST, JSON.stringify(playlist));
       } else {
         localStorage.removeItem(STORAGE_KEYS.ACTIVE_PLAYLIST);
-        sessionStorage.removeItem(STORAGE_KEYS.CACHED_DATA);
       }
     } catch (e) {
       console.error('Error setting active playlist', e);
-    }
-  },
-
-  getCachedData(): any | null {
-    try {
-      const cached = sessionStorage.getItem(STORAGE_KEYS.CACHED_DATA);
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
-  },
-
-  saveCachedData(data: any): void {
-    try {
-      sessionStorage.setItem(STORAGE_KEYS.CACHED_DATA, JSON.stringify(data));
-    } catch (e) {
-      console.warn('Session cache limit, skipping storage', e);
     }
   },
 

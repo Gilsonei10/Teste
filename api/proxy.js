@@ -58,7 +58,6 @@ function fetchUrlWithRedirects(targetUrl, method, clientHeaders, redirectCount =
 }
 
 module.exports = async (req, res) => {
-  // CORS Preflight
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -88,6 +87,7 @@ module.exports = async (req, res) => {
 
   try {
     const { res: proxyRes, finalUrl } = await fetchUrlWithRedirects(targetUrl, req.method || 'GET', req.headers);
+    const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -99,6 +99,21 @@ module.exports = async (req, res) => {
     }
     if (proxyRes.headers['accept-ranges']) {
       res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
+    }
+
+    const isM3uPlaylistFile =
+      finalUrl.includes('get.php') ||
+      finalUrl.includes('type=m3u') ||
+      finalUrl.includes('player_api.php') ||
+      contentType.includes('octet-stream');
+
+    if (isM3uPlaylistFile) {
+      res.status(proxyRes.statusCode || 200);
+      if (proxyRes.headers['content-type']) {
+        res.setHeader('Content-Type', proxyRes.headers['content-type']);
+      }
+      proxyRes.pipe(res);
+      return;
     }
 
     let hasHandledFirstChunk = false;
