@@ -1,0 +1,595 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  Category,
+  LiveChannel,
+  MovieItem,
+  SeriesItem,
+  EpisodeItem,
+  SavedPlaylist,
+  AppSettings,
+  XtreamCredentials,
+} from '../types/iptv';
+import { StorageService } from '../services/storageService';
+import { XtreamService } from '../services/xtreamService';
+import { parseM3U } from '../services/m3uParser';
+import {
+  DEMO_LIVE_CATEGORIES,
+  DEMO_LIVE_CHANNELS,
+  DEMO_MOVIE_CATEGORIES,
+  DEMO_MOVIES,
+  DEMO_SERIES_CATEGORIES,
+  DEMO_SERIES,
+} from '../services/demoData';
+
+export type MainSection = 'live' | 'movies' | 'series' | 'favorites';
+
+export interface PlayingMedia {
+  type: 'live' | 'movie' | 'episode';
+  title: string;
+  streamUrl: string;
+  poster?: string;
+  category?: string;
+  channelNum?: number | string;
+  seasonNum?: number;
+  episodeNum?: number;
+  id: string;
+  rawItem: LiveChannel | MovieItem | EpisodeItem;
+  seriesContext?: SeriesItem;
+}
+
+interface IptvContextType {
+  // Navigation
+  activeSection: MainSection;
+  setActiveSection: (sec: MainSection) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+
+  // Modals & Panels
+  isConnectModalOpen: boolean;
+  setIsConnectModalOpen: (open: boolean) => void;
+  isSettingsModalOpen: boolean;
+  setIsSettingsModalOpen: (open: boolean) => void;
+  selectedMovieForDetails: MovieItem | null;
+  setSelectedMovieForDetails: (movie: MovieItem | null) => void;
+  selectedSeriesForDetails: SeriesItem | null;
+  setSelectedSeriesForDetails: (series: SeriesItem | null) => void;
+
+  // Settings
+  settings: AppSettings;
+  updateSettings: (newSettings: Partial<AppSettings>) => void;
+
+  // Playlists & Connection
+  activePlaylist: SavedPlaylist | null;
+  savedPlaylists: SavedPlaylist[];
+  connectXtream: (credentials: XtreamCredentials, name?: string) => Promise<void>;
+  connectM3UUrl: (url: string, name?: string) => Promise<void>;
+  connectM3UFile: (content: string, name?: string) => Promise<void>;
+  loadDemoData: () => void;
+  disconnectPlaylist: () => void;
+  removeSavedPlaylist: (id: string) => void;
+
+  // Data
+  isLoading: boolean;
+  loadingMessage: string;
+  errorMessage: string | null;
+  setErrorMessage: (msg: string | null) => void;
+
+  // Live TV
+  liveCategories: Category[];
+  liveChannels: LiveChannel[];
+  selectedLiveCategoryId: string;
+  setSelectedLiveCategoryId: (id: string) => void;
+
+  // Movies
+  movieCategories: Category[];
+  movies: MovieItem[];
+  selectedMovieCategoryId: string;
+  setSelectedMovieCategoryId: (id: string) => void;
+
+  // Series
+  seriesCategories: Category[];
+  seriesList: SeriesItem[];
+  selectedSeriesCategoryId: string;
+  setSelectedSeriesCategoryId: (id: string) => void;
+  fetchSeriesDetails: (seriesId: string | number) => Promise<SeriesItem | null>;
+
+  // Playback
+  currentPlaying: PlayingMedia | null;
+  playLiveChannel: (channel: LiveChannel) => void;
+  playMovie: (movie: MovieItem) => void;
+  playEpisode: (episode: EpisodeItem, series: SeriesItem) => void;
+  closePlayer: () => void;
+  playNextChannel: () => void;
+  playPrevChannel: () => void;
+
+  // Favorites
+  favorites: { live: string[]; movies: string[]; series: string[] };
+  toggleFavorite: (type: 'live' | 'movies' | 'series', id: string) => void;
+  isFavorite: (type: 'live' | 'movies' | 'series', id: string) => boolean;
+}
+
+const IptvContext = createContext<IptvContextType | null>(null);
+
+export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [activeSection, setActiveSection] = useState<MainSection>('live');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const [isConnectModalOpen, setIsConnectModalOpen] = useState<boolean>(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
+  const [selectedMovieForDetails, setSelectedMovieForDetails] = useState<MovieItem | null>(null);
+  const [selectedSeriesForDetails, setSelectedSeriesForDetails] = useState<SeriesItem | null>(null);
+
+  const [settings, setSettings] = useState<AppSettings>(StorageService.getSettings());
+  const [activePlaylist, setActivePlaylistState] = useState<SavedPlaylist | null>(StorageService.getActivePlaylist());
+  const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylist[]>(StorageService.getPlaylists());
+
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const [liveCategories, setLiveCategories] = useState<Category[]>([]);
+  const [liveChannels, setLiveChannels] = useState<LiveChannel[]>([]);
+  const [selectedLiveCategoryId, setSelectedLiveCategoryId] = useState<string>('all');
+
+  const [movieCategories, setMovieCategories] = useState<Category[]>([]);
+  const [movies, setMovies] = useState<MovieItem[]>([]);
+  const [selectedMovieCategoryId, setSelectedMovieCategoryId] = useState<string>('all');
+
+  const [seriesCategories, setSeriesCategories] = useState<Category[]>([]);
+  const [seriesList, setSeriesList] = useState<SeriesItem[]>([]);
+  const [selectedSeriesCategoryId, setSelectedSeriesCategoryId] = useState<string>('all');
+
+  const [currentPlaying, setCurrentPlaying] = useState<PlayingMedia | null>(null);
+  const [favorites, setFavorites] = useState<{ live: string[]; movies: string[]; series: string[] }>(
+    StorageService.getFavorites()
+  );
+
+  const [xtreamInstance, setXtreamInstance] = useState<XtreamService | null>(null);
+
+  const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      StorageService.saveSettings(updated);
+      return updated;
+    });
+  }, []);
+
+  const loadDemoData = useCallback(() => {
+    setIsLoading(true);
+    setLoadingMessage('Carregando canais e mídias de demonstração...');
+    setErrorMessage(null);
+
+    setLiveCategories(DEMO_LIVE_CATEGORIES);
+    setLiveChannels(DEMO_LIVE_CHANNELS);
+    setMovieCategories(DEMO_MOVIE_CATEGORIES);
+    setMovies(DEMO_MOVIES);
+    setSeriesCategories(DEMO_SERIES_CATEGORIES);
+    setSeriesList(DEMO_SERIES);
+
+    const demoPlaylist: SavedPlaylist = {
+      id: 'demo_playlist',
+      name: 'Demonstração Gratuita',
+      type: 'demo',
+      createdAt: Date.now(),
+    };
+    StorageService.savePlaylist(demoPlaylist);
+    setActivePlaylistState(demoPlaylist);
+    setSavedPlaylists(StorageService.getPlaylists());
+    setIsLoading(false);
+  }, []);
+
+  const connectXtream = useCallback(
+    async (credentials: XtreamCredentials, name?: string) => {
+      setIsLoading(true);
+      setLoadingMessage('Autenticando no servidor Xtream Codes...');
+      setErrorMessage(null);
+
+      try {
+        const client = new XtreamService(credentials, settings);
+        await client.authenticate();
+        setXtreamInstance(client);
+
+        setLoadingMessage('Carregando categorias e canais de TV ao vivo...');
+        const [liveCats, liveStreams] = await Promise.all([
+          client.getLiveCategories(),
+          client.getLiveStreams(),
+        ]);
+
+        setLoadingMessage('Carregando catálogo de filmes...');
+        const [movieCats, movieStreams] = await Promise.all([
+          client.getMovieCategories(),
+          client.getMovies(),
+        ]);
+
+        setLoadingMessage('Carregando catálogo de séries...');
+        const [seriesCats, seriesItems] = await Promise.all([
+          client.getSeriesCategories(),
+          client.getSeries(),
+        ]);
+
+        setLiveCategories(liveCats);
+        setLiveChannels(liveStreams);
+        setMovieCategories(movieCats);
+        setMovies(movieStreams);
+        setSeriesCategories(seriesCats);
+        setSeriesList(seriesItems);
+
+        const playlistName = name || credentials.username || 'Xtream Server';
+        const playlist: SavedPlaylist = {
+          id: `xtream_${Date.now()}`,
+          name: playlistName,
+          type: 'xtream',
+          credentials,
+          createdAt: Date.now(),
+        };
+
+        StorageService.saveCachedData({
+          playlistId: playlist.id,
+          liveCategories: liveCats,
+          liveChannels: liveStreams,
+          movieCategories: movieCats,
+          movies: movieStreams,
+          seriesCategories: seriesCats,
+          series: seriesItems,
+        });
+
+        StorageService.savePlaylist(playlist);
+        setActivePlaylistState(playlist);
+        setSavedPlaylists(StorageService.getPlaylists());
+        setIsConnectModalOpen(false);
+      } catch (err: any) {
+        console.error(err);
+        setErrorMessage(err.message || 'Erro ao conectar no servidor Xtream Codes.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [settings]
+  );
+
+  const connectM3UUrl = useCallback(
+    async (rawInputUrl: string, name?: string) => {
+      setIsLoading(true);
+      setLoadingMessage('Baixando lista M3U...');
+      setErrorMessage(null);
+
+      const cleanUrl = rawInputUrl.trim();
+
+      try {
+        let fetchUrl = cleanUrl;
+        if (settings.useCorsProxy && settings.corsProxyUrl) {
+          fetchUrl = `${settings.corsProxyUrl}${encodeURIComponent(cleanUrl)}`;
+        }
+
+        let res = await fetch(fetchUrl);
+
+        // Fallback to direct fetch if proxy fails
+        if (!res.ok && settings.useCorsProxy) {
+          try {
+            const directRes = await fetch(cleanUrl);
+            if (directRes.ok) {
+              res = directRes;
+            }
+          } catch {
+            // keep original response
+          }
+        }
+
+        if (!res.ok) {
+          throw new Error(`Falha ao baixar lista M3U (Status HTTP ${res.status}). Verifique se o link está online.`);
+        }
+
+        const text = await res.text();
+        if (!text || text.length < 10) {
+          throw new Error('A lista M3U retornou vazia ou inválida.');
+        }
+
+        setLoadingMessage('Processando canais, filmes e séries...');
+        const parsed = parseM3U(text);
+
+        if (parsed.liveChannels.length === 0 && parsed.movies.length === 0 && parsed.series.length === 0) {
+          throw new Error('Nenhum canal ou mídia foi encontrado dentro deste arquivo M3U.');
+        }
+
+        setLiveCategories(parsed.liveCategories);
+        setLiveChannels(parsed.liveChannels);
+        setMovieCategories(parsed.movieCategories);
+        setMovies(parsed.movies);
+        setSeriesCategories(parsed.seriesCategories);
+        setSeriesList(parsed.series);
+
+        const playlistName = name || 'Lista M3U Web';
+        const playlist: SavedPlaylist = {
+          id: `m3u_${Date.now()}`,
+          name: playlistName,
+          type: 'm3u_url',
+          url: cleanUrl,
+          createdAt: Date.now(),
+        };
+
+        StorageService.saveCachedData({
+          playlistId: playlist.id,
+          liveCategories: parsed.liveCategories,
+          liveChannels: parsed.liveChannels,
+          movieCategories: parsed.movieCategories,
+          movies: parsed.movies,
+          seriesCategories: parsed.seriesCategories,
+          series: parsed.series,
+        });
+
+        StorageService.savePlaylist(playlist);
+        setActivePlaylistState(playlist);
+        setSavedPlaylists(StorageService.getPlaylists());
+        setIsConnectModalOpen(false);
+      } catch (err: any) {
+        console.error(err);
+        setErrorMessage(err.message || 'Erro ao carregar lista M3U.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [settings]
+  );
+
+  const connectM3UFile = useCallback(
+    async (content: string, name?: string) => {
+      setIsLoading(true);
+      setLoadingMessage('Processando arquivo de lista M3U...');
+      setErrorMessage(null);
+
+      try {
+        const parsed = parseM3U(content);
+
+        if (parsed.liveChannels.length === 0 && parsed.movies.length === 0 && parsed.series.length === 0) {
+          throw new Error('Nenhum canal ou mídia foi encontrado dentro deste arquivo M3U.');
+        }
+
+        setLiveCategories(parsed.liveCategories);
+        setLiveChannels(parsed.liveChannels);
+        setMovieCategories(parsed.movieCategories);
+        setMovies(parsed.movies);
+        setSeriesCategories(parsed.seriesCategories);
+        setSeriesList(parsed.series);
+
+        const playlistName = name || 'Arquivo M3U Local';
+        const playlist: SavedPlaylist = {
+          id: `m3ufile_${Date.now()}`,
+          name: playlistName,
+          type: 'm3u_file',
+          createdAt: Date.now(),
+        };
+
+        StorageService.savePlaylist(playlist);
+        setActivePlaylistState(playlist);
+        setSavedPlaylists(StorageService.getPlaylists());
+        setIsConnectModalOpen(false);
+      } catch (err: any) {
+        console.error(err);
+        setErrorMessage(err.message || 'Erro ao processar o arquivo M3U.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  const disconnectPlaylist = useCallback(() => {
+    StorageService.setActivePlaylist(null);
+    setActivePlaylistState(null);
+    setLiveCategories([]);
+    setLiveChannels([]);
+    setMovieCategories([]);
+    setMovies([]);
+    setSeriesCategories([]);
+    setSeriesList([]);
+    setCurrentPlaying(null);
+    setXtreamInstance(null);
+    setIsConnectModalOpen(true);
+  }, []);
+
+  const removeSavedPlaylist = useCallback((id: string) => {
+    StorageService.removePlaylist(id);
+    setSavedPlaylists(StorageService.getPlaylists());
+    const active = StorageService.getActivePlaylist();
+    if (!active) {
+      disconnectPlaylist();
+    }
+  }, [disconnectPlaylist]);
+
+  const fetchSeriesDetails = useCallback(
+    async (seriesId: string | number): Promise<SeriesItem | null> => {
+      const existing = seriesList.find(s => String(s.seriesId || s.id) === String(seriesId));
+      if (!existing) return null;
+
+      if (existing.seasons && existing.seasons.length > 0) {
+        return existing;
+      }
+
+      if (xtreamInstance && existing.seriesId) {
+        setIsLoading(true);
+        setLoadingMessage('Buscando temporadas e episódios...');
+        try {
+          const { seasons } = await xtreamInstance.getSeriesDetails(existing.seriesId);
+          const updatedSeries: SeriesItem = { ...existing, seasons };
+          setSeriesList(prev => prev.map(s => (s.id === existing.id ? updatedSeries : s)));
+          return updatedSeries;
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+      return existing;
+    },
+    [seriesList, xtreamInstance]
+  );
+
+  // Playback handlers
+  const playLiveChannel = useCallback((channel: LiveChannel) => {
+    setCurrentPlaying({
+      type: 'live',
+      title: channel.name,
+      streamUrl: channel.streamUrl,
+      poster: channel.logo,
+      category: channel.category,
+      channelNum: channel.num,
+      id: channel.id,
+      rawItem: channel,
+    });
+  }, []);
+
+  const playMovie = useCallback((movie: MovieItem) => {
+    setCurrentPlaying({
+      type: 'movie',
+      title: movie.title || movie.name,
+      streamUrl: movie.streamUrl,
+      poster: movie.poster || movie.backdrop,
+      category: movie.category,
+      id: movie.id,
+      rawItem: movie,
+    });
+    setSelectedMovieForDetails(null);
+  }, []);
+
+  const playEpisode = useCallback((episode: EpisodeItem, series: SeriesItem) => {
+    setCurrentPlaying({
+      type: 'episode',
+      title: `${series.name} - T${episode.seasonNum}E${episode.episodeNum}: ${episode.title}`,
+      streamUrl: episode.streamUrl,
+      poster: episode.thumbnail || series.poster,
+      category: series.category,
+      seasonNum: episode.seasonNum,
+      episodeNum: episode.episodeNum,
+      id: episode.id,
+      rawItem: episode,
+      seriesContext: series,
+    });
+    setSelectedSeriesForDetails(null);
+  }, []);
+
+  const closePlayer = useCallback(() => {
+    setCurrentPlaying(null);
+  }, []);
+
+  const playNextChannel = useCallback(() => {
+    if (!currentPlaying || currentPlaying.type !== 'live' || liveChannels.length === 0) return;
+    const currentIdx = liveChannels.findIndex(c => c.id === currentPlaying.id);
+    const nextIdx = (currentIdx + 1) % liveChannels.length;
+    playLiveChannel(liveChannels[nextIdx]);
+  }, [currentPlaying, liveChannels, playLiveChannel]);
+
+  const playPrevChannel = useCallback(() => {
+    if (!currentPlaying || currentPlaying.type !== 'live' || liveChannels.length === 0) return;
+    const currentIdx = liveChannels.findIndex(c => c.id === currentPlaying.id);
+    const prevIdx = (currentIdx - 1 + liveChannels.length) % liveChannels.length;
+    playLiveChannel(liveChannels[prevIdx]);
+  }, [currentPlaying, liveChannels, playLiveChannel]);
+
+  // Favorites
+  const toggleFavorite = useCallback((type: 'live' | 'movies' | 'series', id: string) => {
+    StorageService.toggleFavorite(type, id);
+    setFavorites(StorageService.getFavorites());
+  }, []);
+
+  const isFavorite = useCallback(
+    (type: 'live' | 'movies' | 'series', id: string) => {
+      return (favorites[type] || []).includes(id);
+    },
+    [favorites]
+  );
+
+  // Auto-load on mount (with Session Cache to prevent 429 rate limit)
+  useEffect(() => {
+    const active = StorageService.getActivePlaylist();
+    if (active) {
+      const cached = StorageService.getCachedData();
+      if (cached && (cached.playlistId === active.id || active.type === 'm3u_url')) {
+        if (cached.liveChannels && cached.liveChannels.length > 0) {
+          setLiveCategories(cached.liveCategories || []);
+          setLiveChannels(cached.liveChannels || []);
+          setMovieCategories(cached.movieCategories || []);
+          setMovies(cached.movies || []);
+          setSeriesCategories(cached.seriesCategories || []);
+          setSeriesList(cached.series || []);
+          return;
+        }
+      }
+
+      if (active.type === 'demo') {
+        loadDemoData();
+      } else if (active.type === 'xtream' && active.credentials) {
+        connectXtream(active.credentials, active.name);
+      } else if (active.type === 'm3u_url' && active.url) {
+        connectM3UUrl(active.url, active.name);
+      }
+    } else {
+      loadDemoData();
+    }
+  }, []);
+
+  return (
+    <IptvContext.Provider
+      value={{
+        activeSection,
+        setActiveSection,
+        searchQuery,
+        setSearchQuery,
+        isConnectModalOpen,
+        setIsConnectModalOpen,
+        isSettingsModalOpen,
+        setIsSettingsModalOpen,
+        selectedMovieForDetails,
+        setSelectedMovieForDetails,
+        selectedSeriesForDetails,
+        setSelectedSeriesForDetails,
+        settings,
+        updateSettings,
+        activePlaylist,
+        savedPlaylists,
+        connectXtream,
+        connectM3UUrl,
+        connectM3UFile,
+        loadDemoData,
+        disconnectPlaylist,
+        removeSavedPlaylist,
+        isLoading,
+        loadingMessage,
+        errorMessage,
+        setErrorMessage,
+        liveCategories,
+        liveChannels,
+        selectedLiveCategoryId,
+        setSelectedLiveCategoryId,
+        movieCategories,
+        movies,
+        selectedMovieCategoryId,
+        setSelectedMovieCategoryId,
+        seriesCategories,
+        seriesList,
+        selectedSeriesCategoryId,
+        setSelectedSeriesCategoryId,
+        fetchSeriesDetails,
+        currentPlaying,
+        playLiveChannel,
+        playMovie,
+        playEpisode,
+        closePlayer,
+        playNextChannel,
+        playPrevChannel,
+        favorites,
+        toggleFavorite,
+        isFavorite,
+      }}
+    >
+      {children}
+    </IptvContext.Provider>
+  );
+};
+
+export const useIptv = () => {
+  const context = useContext(IptvContext);
+  if (!context) {
+    throw new Error('useIptv must be used within an IptvProvider');
+  }
+  return context;
+};
