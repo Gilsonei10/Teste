@@ -64,6 +64,7 @@ interface IptvContextType {
   connectXtream: (credentials: XtreamCredentials, name?: string) => Promise<void>;
   connectM3UUrl: (url: string, name?: string) => Promise<void>;
   connectM3UFile: (content: string, name?: string) => Promise<void>;
+  refreshActivePlaylist: () => Promise<{ liveChannels: LiveChannel[] } | null>;
   loadDemoData: () => void;
   disconnectPlaylist: () => void;
   removeSavedPlaylist: (id: string) => void;
@@ -331,6 +332,43 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [settings]
   );
 
+  const refreshActivePlaylist = useCallback(async (): Promise<{ liveChannels: LiveChannel[] } | null> => {
+    const active = StorageService.getActivePlaylist();
+    if (!active) return null;
+
+    if (active.type === 'm3u_url' && active.url) {
+      try {
+        let fetchUrl = active.url;
+        if (settings.useCorsProxy && settings.corsProxyUrl) {
+          fetchUrl = `${settings.corsProxyUrl}${encodeURIComponent(active.url)}`;
+        }
+        const res = await fetch(fetchUrl);
+        if (res.ok) {
+          const text = await res.text();
+          const parsed = parseM3U(text);
+          if (parsed.liveChannels.length > 0) {
+            setLiveChannels(parsed.liveChannels);
+            setMovies(parsed.movies);
+            setSeriesList(parsed.series);
+            StorageService.saveCachedData({
+              playlistId: active.id,
+              liveCategories: parsed.liveCategories,
+              liveChannels: parsed.liveChannels,
+              movieCategories: parsed.movieCategories,
+              movies: parsed.movies,
+              seriesCategories: parsed.seriesCategories,
+              series: parsed.series,
+            });
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Background token refresh failed', e);
+      }
+    }
+    return null;
+  }, [settings]);
+
   const connectM3UFile = useCallback(
     async (content: string, name?: string) => {
       setIsLoading(true);
@@ -498,7 +536,7 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [favorites]
   );
 
-  // Auto-load on mount (with Session Cache to prevent 429 rate limit)
+  // Auto-load on mount
   useEffect(() => {
     const active = StorageService.getActivePlaylist();
     if (active) {
@@ -549,6 +587,7 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         connectXtream,
         connectM3UUrl,
         connectM3UFile,
+        refreshActivePlaylist,
         loadDemoData,
         disconnectPlaylist,
         removeSavedPlaylist,

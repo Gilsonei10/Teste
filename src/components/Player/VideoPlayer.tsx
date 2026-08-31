@@ -32,6 +32,7 @@ export const VideoPlayer: React.FC = () => {
     isFavorite,
     settings,
     updateSettings,
+    refreshActivePlaylist,
   } = useIptv();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -39,6 +40,7 @@ export const VideoPlayer: React.FC = () => {
   const hlsRef = useRef<Hls | null>(null);
   const mpegtsRef = useRef<mpegts.Player | null>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRetryingTokenRef = useRef<boolean>(false);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -115,7 +117,34 @@ export const VideoPlayer: React.FC = () => {
     }
   };
 
-  // Initialize playback with robust MPEG-TS & HLS demuxing
+  // Attempt auto token refresh on expired channel token
+  const handleAutoTokenRecovery = useCallback(
+    async (targetChannelId: string) => {
+      if (isRetryingTokenRef.current) return false;
+      isRetryingTokenRef.current = true;
+
+      try {
+        const refreshed = await refreshActivePlaylist();
+        if (refreshed && refreshed.liveChannels) {
+          const freshChannel = refreshed.liveChannels.find(c => c.id === targetChannelId || c.name === currentPlaying?.title);
+          if (freshChannel && freshChannel.streamUrl) {
+            console.info('Token renovado com sucesso! Reiniciando canal...');
+            isRetryingTokenRef.current = false;
+            startPlayback(freshChannel.streamUrl);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao renovar token:', e);
+      }
+
+      isRetryingTokenRef.current = false;
+      return false;
+    },
+    [currentPlaying, refreshActivePlaylist]
+  );
+
+  // Initialize playback
   const startPlayback = useCallback(
     (rawUrl: string, forceFormat?: 'hls' | 'ts' | 'native') => {
       if (!videoRef.current) return;
@@ -134,7 +163,11 @@ export const VideoPlayer: React.FC = () => {
       // Format detection
       const lowerRaw = rawUrl.toLowerCase();
       const isExplicitHls = lowerRaw.endsWith('.m3u8');
-      const isExplicitTs = lowerRaw.endsWith('.ts') || lowerRaw.includes('/play/') || lowerRaw.includes('/live/') || lowerRaw.includes('/auth/');
+      const isExplicitTs =
+        lowerRaw.endsWith('.ts') ||
+        lowerRaw.includes('/play/') ||
+        lowerRaw.includes('/live/') ||
+        lowerRaw.includes('/auth/');
 
       let chosenFormat: 'hls' | 'ts' | 'native' = 'ts';
       if (forceFormat) {
@@ -149,23 +182,23 @@ export const VideoPlayer: React.FC = () => {
 
       setStreamFormat(chosenFormat);
 
-      // 1. PLAY VIA MPEGTS.JS (Fixed: Worker disabled to prevent bundle crash, Stash buffer enabled for valid TS packets)
+      // 1. PLAY VIA MPEGTS.JS (MPEG-TS Live Stream)
       if (chosenFormat === 'ts' && mpegts.isSupported()) {
         try {
           const player = mpegts.createPlayer(
             {
-              type: 'mpegts',
+              type: 'mse',
               isLive: true,
               url: targetUrl,
             },
             {
-              enableWorker: false, // Run in main thread for instant stability
+              enableWorker: false,
               lazyLoad: false,
               liveBufferLatencyChasing: true,
               autoCleanupSourceBuffer: true,
               deferLoadAfterSourceOpen: false,
               enableStashBuffer: true,
-              stashInitialSize: 384, // At least 2 full 188-byte TS packets
+              stashInitialSize: 384,
             }
           );
 
@@ -183,14 +216,21 @@ export const VideoPlayer: React.FC = () => {
             });
           }
 
-          player.on(mpegts.Events.ERROR, (errType: any, errDetail: any) => {
+          player.on(mpegts.Events.ERROR, async (errType: any, errDetail: any) => {
             console.warn('MPEGTS Error:', errType, errDetail);
-            setPlaybackError('Falha ao decodificar sinal de transmissão ao vivo.');
+
+            // Auto-refresh token if expired
+            if (currentPlaying && currentPlaying.type === 'live' && !isRetryingTokenRef.current) {
+              const recovered = await handleAutoTokenRecovery(currentPlaying.id);
+              if (recovered) return;
+            }
+
+            setPlaybackError('Falha ao decodificar sinal do canal. Tentando recuperar...');
             setIsBuffering(false);
           });
           return;
         } catch (e: any) {
-          console.warn('Failed to init mpegts player', e);
+          console.warn('Failed to init mpegts player, falling back to Hls', e);
         }
       }
 
@@ -212,9 +252,14 @@ export const VideoPlayer: React.FC = () => {
           safePlayVideo(video);
         });
 
-        hls.on(Hls.Events.ERROR, (_event, data) => {
+        hls.on(Hls.Events.ERROR, async (_event, data) => {
           console.warn('HLS Error Event:', data);
           if (data.fatal) {
+            if (currentPlaying && currentPlaying.type === 'live' && !isRetryingTokenRef.current) {
+              const recovered = await handleAutoTokenRecovery(currentPlaying.id);
+              if (recovered) return;
+            }
+
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 setPlaybackError('Erro de conexão no stream do canal.');
@@ -234,7 +279,7 @@ export const VideoPlayer: React.FC = () => {
         return;
       }
 
-      // 3. NATIVE VIDEO ELEMENT (Direct MP4 / Safari HLS)
+      // 3. NATIVE VIDEO ELEMENT
       if (video.canPlayType('application/vnd.apple.mpegurl') || chosenFormat === 'native' || !chosenFormat) {
         video.src = targetUrl;
         video.load();
@@ -243,7 +288,7 @@ export const VideoPlayer: React.FC = () => {
         setPlaybackError('Formato de stream não suportado neste navegador.');
       }
     },
-    [settings.useCorsProxy, settings.corsProxyUrl, settings.bufferLengthSeconds, currentPlaying, cleanupPlayers]
+    [settings.useCorsProxy, settings.corsProxyUrl, settings.bufferLengthSeconds, currentPlaying, cleanupPlayers, handleAutoTokenRecovery]
   );
 
   // Trigger playback when currentPlaying changes
@@ -287,8 +332,12 @@ export const VideoPlayer: React.FC = () => {
       }
     };
     const onDurationChange = () => setDuration(video.duration || 0);
-    const onError = () => {
+    const onError = async () => {
       setIsBuffering(false);
+      if (currentPlaying && currentPlaying.type === 'live' && !isRetryingTokenRef.current) {
+        const recovered = await handleAutoTokenRecovery(currentPlaying.id);
+        if (recovered) return;
+      }
       setPlaybackError('Falha ao reproduzir o stream.');
     };
 
@@ -309,7 +358,7 @@ export const VideoPlayer: React.FC = () => {
       video.removeEventListener('durationchange', onDurationChange);
       video.removeEventListener('error', onError);
     };
-  }, [currentPlaying]);
+  }, [currentPlaying, handleAutoTokenRecovery]);
 
   // Keyboard shortcut handlers for TV Remotes / PC
   useEffect(() => {
@@ -469,6 +518,21 @@ export const VideoPlayer: React.FC = () => {
           <p className="text-slate-300 text-sm max-w-md text-center mb-6">{playbackError}</p>
 
           <div className="flex flex-wrap gap-3 items-center justify-center max-w-lg">
+            {/* Auto Renovar Token */}
+            <button
+              onClick={async () => {
+                if (currentPlaying) {
+                  setIsBuffering(true);
+                  setPlaybackError(null);
+                  await handleAutoTokenRecovery(currentPlaying.id);
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Renovar Token e Tentar Novamente
+            </button>
+
             {/* Format Switcher */}
             <button
               onClick={() => startPlayback(currentPlaying.streamUrl, 'ts')}
@@ -484,19 +548,6 @@ export const VideoPlayer: React.FC = () => {
             >
               <Tv className="w-4 h-4" />
               Engine HLS
-            </button>
-
-            {/* Toggle Proxy */}
-            <button
-              onClick={() => {
-                const nextProxyState = !settings.useCorsProxy;
-                updateSettings({ useCorsProxy: nextProxyState });
-                startPlayback(currentPlaying.streamUrl);
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-tv-card hover:bg-tv-border border border-tv-border text-slate-200 rounded-xl text-xs font-semibold transition-all"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              {settings.useCorsProxy ? 'Testar Sem Proxy' : 'Testar Com Proxy'}
             </button>
 
             <button
