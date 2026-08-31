@@ -31,7 +31,6 @@ export const VideoPlayer: React.FC = () => {
     toggleFavorite,
     isFavorite,
     settings,
-    updateSettings,
     refreshActivePlaylist,
   } = useIptv();
 
