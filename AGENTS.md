@@ -16,6 +16,13 @@ Este arquivo define as diretrizes fundamentais e inegociáveis para a atuação 
 - Evitar *over-engineering*, abstrações prematuras e complexidade desnecessária.
 - Priorizar soluções simples, diretas, limpas, performáticas e fáceis de entender.
 
-### 4. ATENHA-SE UNICAMENTE AO MEU COMANDO
-- Executar rigorosa e estritamente o que foi solicitado pelo usuário.
+### 4. ATENHA-SE UNICAMENTE AO MEU COMANDO (SEM ABSTRAÇÕES)
+- Executar rigorosa e estritamente o que foi solicitado, sem ficar abstraindo ou enrolando.
 - Não introduzir alterações fora de escopo, dependências supérfluas, arquivos não solicitados ou recursos extras sem instrução explícita.
+
+### 5. PERGUNTAS vs EXECUÇÃO
+- Se o usuário fizer uma pergunta ou solicitar esclarecimento, apenas responda textualmente. NÃO execute alterações nem comandos.
+
+### 6. ESCOPO CIRÚRGICO DE ALTERAÇÃO
+- Quando solicitado para mexer em uma tela ou elemento específico, atente-se e altere exclusivamente aquele alvo.
+- Não mexa em absolutamente nada além do que foi expressamente indicado.

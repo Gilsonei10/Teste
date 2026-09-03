@@ -29,6 +29,8 @@ export class XtreamService {
     if (!base.startsWith('http://') && !base.startsWith('https://')) {
       base = `http://${base}`;
     }
+    // Remove porta padrão redundante (:80 no http, :443 no https) para evitar problemas de proxy e host header
+    base = base.replace(/:80(?=\/|$)/, '').replace(/:443(?=\/|$)/, '');
     this.serverUrl = base.replace(/\/+$/, '');
     this.username = credentials.username.trim();
     this.password = credentials.password.trim();
@@ -55,7 +57,16 @@ export class XtreamService {
     const url = this.buildApiUrl();
     const res = await fetch(url);
     if (!res.ok) {
-      throw new Error(`Falha ao conectar no servidor Xtream (${res.status})`);
+      if (res.status === 500) {
+        throw new Error('Servidor indisponível ou erro interno (500). Verifique suas credenciais ou tente novamente.');
+      }
+      if (res.status === 404) {
+        throw new Error('Servidor ou rota não encontrada (404). Verifique se o usuário/senha estão corretos.');
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Acesso não autorizado (401/403). Usuário ou senha incorretos ou expirados.');
+      }
+      throw new Error(`Falha ao conectar no servidor (${res.status})`);
     }
     const data = await res.json();
     if (data.user_info && data.user_info.auth === 0) {

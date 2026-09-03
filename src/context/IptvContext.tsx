@@ -61,7 +61,7 @@ interface IptvContextType {
   // Playlists & Connection
   activePlaylist: SavedPlaylist | null;
   savedPlaylists: SavedPlaylist[];
-  connectXtream: (credentials: XtreamCredentials, name?: string) => Promise<void>;
+  connectXtream: (credentials: XtreamCredentials, name?: string, silentFail?: boolean) => Promise<boolean>;
   connectM3UUrl: (url: string, name?: string) => Promise<void>;
   connectM3UFile: (content: string, name?: string) => Promise<void>;
   refreshActivePlaylist: () => Promise<{ liveChannels: LiveChannel[] } | null>;
@@ -185,10 +185,10 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const connectXtream = useCallback(
-    async (credentials: XtreamCredentials, name?: string) => {
+    async (credentials: XtreamCredentials, name?: string, silentFail = false) => {
       setIsLoading(true);
       setLoadingMessage('Autenticando no servidor Xtream Codes...');
-      setErrorMessage(null);
+      if (!silentFail) setErrorMessage(null);
 
       try {
         const client = new XtreamService(credentials, settings);
@@ -233,11 +233,17 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setActivePlaylistState(playlist);
         setSavedPlaylists(StorageService.getPlaylists());
         setIsConnectModalOpen(false);
+        return true;
       } catch (err: any) {
         console.error(err);
-        setErrorMessage(err.message || 'Erro ao conectar no servidor Xtream Codes.');
+        if (!silentFail) {
+          setErrorMessage(err.message || 'Erro ao conectar no servidor Xtream Codes.');
+        }
+        return false;
       } finally {
-        setIsLoading(false);
+        if (!silentFail) {
+          setIsLoading(false);
+        }
       }
     },
     [settings]
@@ -251,19 +257,24 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const cleanUrl = rawInputUrl.trim();
 
-      // 1. Otimização Inteligente: Se o link for gerado por servidor Xtream (get.php/player_api.php), conectar via API ultrarrápida
+      // 1. Otimização Inteligente: Se o link for gerado por servidor Xtream (get.php/player_api.php), tentar conectar via API ultrarrápida
       try {
         const urlObj = new URL(cleanUrl);
         const u = urlObj.searchParams.get('username') || urlObj.searchParams.get('user');
         const p = urlObj.searchParams.get('password') || urlObj.searchParams.get('pass');
         if (u && p && (cleanUrl.includes('get.php') || cleanUrl.includes('player_api.php') || cleanUrl.includes('m3u_plus') || cleanUrl.includes(':80/') || cleanUrl.includes(':8080/'))) {
-          const sUrl = `${urlObj.protocol}//${urlObj.host}`;
-          await connectXtream({ serverUrl: sUrl, username: u, password: p }, name || 'Lista IPTV');
-          return;
+          const sUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port && urlObj.port !== '80' && urlObj.port !== '443' ? `:${urlObj.port}` : ''}`;
+          setLoadingMessage('Tentando conexão rápida via API...');
+          const success = await connectXtream({ serverUrl: sUrl, username: u, password: p }, name || 'Lista IPTV', true);
+          if (success) {
+            return;
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Conexão rápida falhou, prosseguindo com download da lista M3U...', e);
+      }
 
-      // 2. Para arquivos M3U normais/estáticos, baixar e processar diretamente
+      // 2. Para arquivos M3U normais/estáticos (ou caso a API Xtream não responda), baixar e processar diretamente
       try {
         setLoadingMessage('Baixando lista M3U...');
         let fetchUrl = cleanUrl;
@@ -286,6 +297,12 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (!res.ok) {
+          if (res.status === 500) {
+            throw new Error('O servidor retornou erro interno (500). Verifique se o servidor está online ou se as credenciais estão corretas.');
+          }
+          if (res.status === 404) {
+            throw new Error('Lista não encontrada (404). Verifique se o link ou a senha foram digitados corretamente.');
+          }
           throw new Error(`Falha ao baixar lista M3U (Status HTTP ${res.status}). Verifique se o link está online.`);
         }
 

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Web IPTV</string>
+    <string name="title_activity_main">Web IPTV</string>
+    <string name="package_name">com.webiptv.player</string>
+    <string name="custom_url_scheme">com.webiptv.player</string>
+</resources>
