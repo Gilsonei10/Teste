@@ -1,6 +1,6 @@
 import React from 'react';
 import { useIptv, MainSection } from '../../context/IptvContext';
-import { Tv, Film, Clapperboard, Star, Search, Settings, Server, Maximize2, Minimize2 } from 'lucide-react';
+import { Home, Tv, Film, Clapperboard, Star, Search, Settings, Server, Maximize2, Minimize2 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const {
@@ -26,6 +26,7 @@ export const Navbar: React.FC = () => {
   };
 
   const navItems: { id: MainSection; label: string; icon: React.ReactNode }[] = [
+    { id: 'home', label: 'Início', icon: <Home className="w-5 h-5" /> },
     { id: 'live', label: 'TV Ao Vivo', icon: <Tv className="w-5 h-5" /> },
     { id: 'movies', label: 'Filmes', icon: <Film className="w-5 h-5" /> },
     { id: 'series', label: 'Séries', icon: <Clapperboard className="w-5 h-5" /> },
@@ -36,8 +37,13 @@ export const Navbar: React.FC = () => {
     <header className="h-16 md:h-20 bg-tv-surface border-b border-tv-border px-3 md:px-6 flex items-center justify-between z-30 shrink-0 select-none">
       {/* Brand & Logo */}
       <div className="flex items-center gap-3 md:gap-6">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 md:w-11 md:h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+        <button
+          data-nav="true"
+          onClick={() => setActiveSection('home')}
+          className="flex items-center gap-2.5 text-left outline-none rounded-xl focus:ring-2 focus:ring-blue-400 group cursor-pointer"
+          title="Ir para o Início"
+        >
+          <div className="w-9 h-9 md:w-11 md:h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
             <Tv className="w-5 h-5 md:w-6 md:h-6 text-white" />
           </div>
           <div className="hidden sm:block">
@@ -46,7 +52,7 @@ export const Navbar: React.FC = () => {
             </h1>
             <p className="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Player Universal</p>
           </div>
-        </div>
+        </button>
 
         {/* Section Navigation Tabs */}
         <nav className="flex items-center gap-1 md:gap-2">

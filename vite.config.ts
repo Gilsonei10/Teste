@@ -19,13 +19,19 @@ function fetchUrlWithRedirects(
     }
 
     try {
-      const urlObj = new URL(targetUrl);
+      const cleanTarget = targetUrl.split('#')[0];
+      const urlObj = new URL(cleanTarget);
       const isHttps = urlObj.protocol === 'https:';
       const client = isHttps ? https : http;
       const agent = isHttps ? httpsAgent : httpAgent;
 
+      const host =
+        urlObj.port && urlObj.port !== '80' && urlObj.port !== '443'
+          ? `${urlObj.hostname}:${urlObj.port}`
+          : urlObj.hostname;
+
       const headers: Record<string, string> = {
-        'Host': urlObj.host,
+        'Host': host,
         'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
         'Accept': '*/*',
         'Connection': 'keep-alive',
@@ -36,7 +42,7 @@ function fetchUrlWithRedirects(
       }
 
       const req = client.request(
-        targetUrl,
+        cleanTarget,
         {
           method: method || 'GET',
           headers,
@@ -46,13 +52,13 @@ function fetchUrlWithRedirects(
           if ([301, 302, 303, 307, 308].includes(res.statusCode || 0) && res.headers.location) {
             const redirectLocation = res.headers.location.startsWith('http')
               ? res.headers.location
-              : new URL(res.headers.location, targetUrl).href;
+              : new URL(res.headers.location, cleanTarget).href;
 
             res.resume();
             return resolve(fetchUrlWithRedirects(redirectLocation, method, clientHeaders, redirectCount + 1));
           }
 
-          resolve({ res, finalUrl: targetUrl });
+          resolve({ res, finalUrl: cleanTarget });
         }
       );
 
@@ -123,6 +129,16 @@ function corsProxyPlugin(): Plugin {
           }
           if (proxyRes.headers['accept-ranges']) {
             res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
+          }
+
+          // Se status for erro do servidor (ex: 404, 403, 500), repassar diretamente com o status correspondente
+          if (proxyRes.statusCode && proxyRes.statusCode >= 400) {
+            res.statusCode = proxyRes.statusCode;
+            if (proxyRes.headers['content-type']) {
+              res.setHeader('Content-Type', proxyRes.headers['content-type']);
+            }
+            proxyRes.pipe(res);
+            return;
           }
 
           // If downloading raw M3U playlist file (get.php, m3u_plus), pipe directly with zero delay!

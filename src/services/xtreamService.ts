@@ -213,9 +213,10 @@ export class XtreamService {
 
       const seasonsMap: Map<number, SeasonItem> = new Map();
 
+      // 1. Inicializar temporadas se informadas na chave seasons
       if (data.seasons && Array.isArray(data.seasons)) {
         data.seasons.forEach((s: any) => {
-          const sNum = parseInt(s.season_number, 10);
+          const sNum = parseInt(s.season_number ?? s.season ?? '1', 10) || 1;
           seasonsMap.set(sNum, {
             seasonNumber: sNum,
             name: s.name || `Temporada ${sNum}`,
@@ -224,39 +225,86 @@ export class XtreamService {
         });
       }
 
-      if (data.episodes && typeof data.episodes === 'object') {
-        Object.entries(data.episodes).forEach(([seasonKey, epList]: [string, any]) => {
-          const sNum = parseInt(seasonKey, 10);
-          if (!seasonsMap.has(sNum)) {
-            seasonsMap.set(sNum, {
-              seasonNumber: sNum,
-              name: `Temporada ${sNum}`,
-              episodes: [],
-            });
-          }
+      const parseEp = (ep: any, fallbackSeasonNum: number): EpisodeItem => {
+        const ext = (ep.container_extension || ep.info?.container_extension || 'mp4').toString().replace(/^\.+/, '');
+        const epId = ep.id ?? ep.stream_id ?? ep.episode_id;
+        const sNum = parseInt(ep.season || ep.season_num || ep.season_number || fallbackSeasonNum || 1, 10) || fallbackSeasonNum || 1;
+        const epNum = parseInt(ep.episode_num || ep.episode || ep.num || 1, 10) || 1;
+        const directUrl = ep.direct_source || ep.stream_url || ep.url;
+        const rawUrl = directUrl || `${this.serverUrl}/series/${this.username}/${this.password}/${epId}.${ext}`;
 
-          if (Array.isArray(epList)) {
-            const episodes: EpisodeItem[] = epList.map((ep: any) => {
-              const ext = ep.container_extension || 'mp4';
-              const rawUrl = `${this.serverUrl}/series/${this.username}/${this.password}/${ep.id}.${ext}`;
-              return {
-                id: `ep_${ep.id}`,
-                episodeNum: parseInt(ep.episode_num, 10) || 1,
-                seasonNum: sNum,
-                title: ep.title || `Episódio ${ep.episode_num}`,
-                streamUrl: rawUrl,
-                thumbnail: ep.info?.movie_image,
-                plot: ep.info?.plot,
-                duration: ep.info?.duration,
-                containerExtension: ext,
-              };
-            });
-            seasonsMap.get(sNum)!.episodes = episodes;
-          }
+        return {
+          id: `ep_${epId}`,
+          episodeNum: epNum,
+          seasonNum: sNum,
+          title: ep.title || ep.name || `Episódio ${epNum}`,
+          streamUrl: rawUrl,
+          thumbnail: ep.info?.movie_image || ep.movie_image || ep.info?.cover || ep.cover,
+          plot: ep.info?.plot || ep.plot,
+          duration: ep.info?.duration || ep.duration,
+          containerExtension: ext,
+        };
+      };
+
+      // 2. Extrair episódios (Array direto ou Objeto chaveado por temporada/episódio)
+      if (data.episodes) {
+        if (Array.isArray(data.episodes)) {
+          data.episodes.forEach((ep: any) => {
+            const sNum = parseInt(ep.season || ep.season_num || ep.season_number || 1, 10) || 1;
+            if (!seasonsMap.has(sNum)) {
+              seasonsMap.set(sNum, {
+                seasonNumber: sNum,
+                name: `Temporada ${sNum}`,
+                episodes: [],
+              });
+            }
+            seasonsMap.get(sNum)!.episodes.push(parseEp(ep, sNum));
+          });
+        } else if (typeof data.episodes === 'object') {
+          Object.entries(data.episodes).forEach(([seasonKey, epList]: [string, any]) => {
+            const parsedNum = parseInt(String(seasonKey).replace(/\D+/g, '') || '1', 10) || 1;
+            const sNum = isNaN(parsedNum) ? 1 : parsedNum;
+
+            if (!seasonsMap.has(sNum)) {
+              seasonsMap.set(sNum, {
+                seasonNumber: sNum,
+                name: `Temporada ${sNum}`,
+                episodes: [],
+              });
+            }
+
+            if (Array.isArray(epList)) {
+              const episodes: EpisodeItem[] = epList.map((ep: any) => parseEp(ep, sNum));
+              seasonsMap.get(sNum)!.episodes.push(...episodes);
+            } else if (epList && typeof epList === 'object') {
+              Object.values(epList).forEach((ep: any) => {
+                seasonsMap.get(sNum)!.episodes.push(parseEp(ep, sNum));
+              });
+            }
+          });
+        }
+      }
+
+      if (seasonsMap.size === 0) {
+        seasonsMap.set(1, {
+          seasonNumber: 1,
+          name: 'Temporada 1',
+          episodes: [],
         });
       }
 
-      const seasons = Array.from(seasonsMap.values()).sort((a, b) => a.seasonNumber - b.seasonNumber);
+      // Ordenar episódios
+      seasonsMap.forEach(season => {
+        season.episodes.sort((a, b) => a.episodeNum - b.episodeNum);
+      });
+
+      // Filtrar temporadas com episódios
+      let seasons = Array.from(seasonsMap.values()).sort((a, b) => a.seasonNumber - b.seasonNumber);
+      const populatedSeasons = seasons.filter(s => s.episodes.length > 0);
+      if (populatedSeasons.length > 0) {
+        seasons = populatedSeasons;
+      }
+
       return { seasons, info: data.info };
     } catch (e) {
       console.error('Error fetching series details', e);

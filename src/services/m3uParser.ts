@@ -60,34 +60,79 @@ export function parseM3U(content: string): ParsedM3UResult {
       const lowerUrl = streamUrl.toLowerCase();
 
       // Detection heuristic for Series, Movies and Live
-      const isSeriesPattern = /(?:s\d{1,2}\s*e\d{1,2}|t\d{1,2}\s*e\d{1,2}|temporada\s*\d+|season\s*\d+|ep\s*\d+)/i;
-      const isSeriesGroup = lowerGroup.includes('série') || lowerGroup.includes('series') || lowerGroup.includes('novela');
-      const isMovieGroup = lowerGroup.includes('filme') || lowerGroup.includes('movie') || lowerGroup.includes('vod') || lowerGroup.includes('cinema');
-      const isVideoFile = lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.mkv') || lowerUrl.endsWith('.avi');
+      const cleanUrlPath = streamUrl.split('?')[0].toLowerCase();
+      const isVideoFile =
+        cleanUrlPath.endsWith('.mp4') ||
+        cleanUrlPath.endsWith('.mkv') ||
+        cleanUrlPath.endsWith('.avi') ||
+        cleanUrlPath.endsWith('.ts') ||
+        cleanUrlPath.endsWith('.m3u8') ||
+        cleanUrlPath.endsWith('.webm') ||
+        cleanUrlPath.endsWith('.mov') ||
+        cleanUrlPath.endsWith('.m4v') ||
+        lowerUrl.includes('/series/') ||
+        lowerUrl.includes('/movie/');
 
-      if ((isSeriesGroup || isSeriesPattern.test(name)) && isVideoFile) {
+      const isSeriesPattern = /(?:[SsTt]\d{1,2}[\s._-]*[Ee][Pp]?\d{1,3}|temporada\s*\d+|season\s*\d+|epis[oó]dio\s*\d+|\b\d{1,2}x\d{1,3}\b)/i;
+      const isSeriesGroup =
+        lowerGroup.includes('série') ||
+        lowerGroup.includes('series') ||
+        lowerGroup.includes('novela') ||
+        lowerGroup.includes('netflix') ||
+        lowerGroup.includes('prime') ||
+        lowerGroup.includes('disney') ||
+        lowerGroup.includes('hbo') ||
+        lowerGroup.includes('max') ||
+        lowerGroup.includes('apple') ||
+        lowerGroup.includes('paramount') ||
+        lowerGroup.includes('globoplay');
+
+      const isMovieGroup =
+        lowerGroup.includes('filme') ||
+        lowerGroup.includes('movie') ||
+        lowerGroup.includes('vod') ||
+        lowerGroup.includes('cinema');
+
+      const isExplicitSeries = (isSeriesGroup || isSeriesPattern.test(name) || lowerUrl.includes('/series/')) && !isMovieGroup;
+
+      if (isExplicitSeries && isVideoFile) {
         // Classify as Series
         seriesCatSet.add(group);
-        
-        // Extract series base name, season and episode
-        const seriesMatch = name.match(/^(.*?)(?:[Ss](\d{1,2})[Ee](\d{1,2})|[Tt](\d{1,2})[Ee](\d{1,2})|Temporada\s*(\d+).*?Epis[oó]dio\s*(\d+)|-(\d+)x(\d+))/i);
-        let baseSeriesName = name;
+
+        // Limpar prefixos e extrair série base, temporada e episódio
+        let cleanName = name.replace(/^\[.*?\]\s*|^[A-Za-z0-9_+\- ]+\|\s*/i, '').trim();
+
+        const sMatch =
+          cleanName.match(/^(.*?)(?:[-_\s.]+)?(?:[Ss]eason|[Tt]emporada|[Tt]emp)?\s*(?:[SsTt](\d{1,2})|(\d{1,2}))\s*(?:[Ee][Pp]?|[Xx]|[-_.:]|Epis[oó]dio|[Ee]pisode)\s*(\d{1,3})(.*)$/i) ||
+          cleanName.match(/^(.*?)(?:[-_\s.]+)?(?:[Ss](\d{1,2})|[Tt](\d{1,2}))[\s._-]*[Ee](\d{1,3})(.*)$/i) ||
+          cleanName.match(/^(.*?)(?:[-_\s.]+)?(\d{1,2})x(\d{1,3})(.*)$/i);
+
+        let baseSeriesName = cleanName;
         let seasonNum = 1;
         let episodeNum = 1;
+        let epTitle = name;
 
-        if (seriesMatch) {
-          baseSeriesName = (seriesMatch[1] || name).replace(/[-_.]/g, ' ').trim();
-          seasonNum = parseInt(seriesMatch[2] || seriesMatch[4] || seriesMatch[6] || seriesMatch[8] || '1', 10);
-          episodeNum = parseInt(seriesMatch[3] || seriesMatch[5] || seriesMatch[7] || seriesMatch[9] || '1', 10);
+        if (sMatch) {
+          baseSeriesName = (sMatch[1] || cleanName).replace(/[-_.]/g, ' ').trim();
+          seasonNum = parseInt(sMatch[2] || sMatch[3] || '1', 10) || 1;
+          episodeNum = parseInt(sMatch[4] || '1', 10) || 1;
+          const extraInfo = (sMatch[5] || '').replace(/^[\s\-_:]+/, '').trim();
+          if (extraInfo) {
+            epTitle = `Episódio ${episodeNum}: ${extraInfo}`;
+          }
+        }
+
+        if (!baseSeriesName) {
+          baseSeriesName = name;
         }
 
         const seriesId = `series_${baseSeriesName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-        
+
         const epItem: EpisodeItem = {
           id: `ep_${seriesId}_s${seasonNum}_e${episodeNum}_${Math.random().toString(36).substr(2, 4)}`,
           seasonNum,
           episodeNum,
-          title: name,
+          title: epTitle,
           streamUrl,
           thumbnail: logo,
         };
@@ -100,9 +145,9 @@ export function parseM3U(content: string): ParsedM3UResult {
               title: baseSeriesName,
               poster: logo,
               category: group,
-              seasons: []
+              seasons: [],
             },
-            episodes: [{ season: seasonNum, episode: episodeNum, item: epItem }]
+            episodes: [{ season: seasonNum, episode: episodeNum, item: epItem }],
           });
         } else {
           seriesMap.get(seriesId)!.episodes.push({ season: seasonNum, episode: episodeNum, item: epItem });

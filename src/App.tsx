@@ -1,6 +1,7 @@
 import React from 'react';
 import { IptvProvider, useIptv } from './context/IptvContext';
 import { Navbar } from './components/Common/Navbar';
+import { HomeView } from './components/Views/HomeView';
 import { LiveTvView } from './components/Views/LiveTvView';
 import { MoviesView } from './components/Views/MoviesView';
 import { SeriesView } from './components/Views/SeriesView';
@@ -15,6 +16,7 @@ import { useSpatialNav } from './hooks/useSpatialNav';
 const MainLayout: React.FC = () => {
   const {
     activeSection,
+    setActiveSection,
     currentPlaying,
     closePlayer,
     selectedMovieForDetails,
@@ -41,6 +43,8 @@ const MainLayout: React.FC = () => {
         setIsConnectModalOpen(false);
       } else if (isSettingsModalOpen) {
         setIsSettingsModalOpen(false);
+      } else if (activeSection !== 'home') {
+        setActiveSection('home');
       }
     },
   });
@@ -56,6 +60,7 @@ const MainLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden relative">
+        {activeSection === 'home' && <HomeView />}
         {activeSection === 'live' && <LiveTvView />}
         {activeSection === 'movies' && <MoviesView />}
         {activeSection === 'series' && <SeriesView />}

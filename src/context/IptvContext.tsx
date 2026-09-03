@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   Category,
   LiveChannel,
@@ -21,7 +21,7 @@ import {
   DEMO_SERIES,
 } from '../services/demoData';
 
-export type MainSection = 'live' | 'movies' | 'series' | 'favorites';
+export type MainSection = 'home' | 'live' | 'movies' | 'series' | 'favorites';
 
 export interface PlayingMedia {
   type: 'live' | 'movie' | 'episode';
@@ -92,7 +92,7 @@ interface IptvContextType {
   seriesList: SeriesItem[];
   selectedSeriesCategoryId: string;
   setSelectedSeriesCategoryId: (id: string) => void;
-  fetchSeriesDetails: (seriesId: string | number) => Promise<SeriesItem | null>;
+  fetchSeriesDetails: (seriesId: string | number, fallbackItem?: SeriesItem) => Promise<SeriesItem | null>;
 
   // Playback
   currentPlaying: PlayingMedia | null;
@@ -112,7 +112,7 @@ interface IptvContextType {
 const IptvContext = createContext<IptvContextType | null>(null);
 
 export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeSection, setActiveSection] = useState<MainSection>('live');
+  const [activeSection, setActiveSection] = useState<MainSection>('home');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [isConnectModalOpen, setIsConnectModalOpen] = useState<boolean>(false);
@@ -138,6 +138,11 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [seriesCategories, setSeriesCategories] = useState<Category[]>([]);
   const [seriesList, setSeriesList] = useState<SeriesItem[]>([]);
+  const seriesListRef = useRef<SeriesItem[]>(seriesList);
+  useEffect(() => {
+    seriesListRef.current = seriesList;
+  }, [seriesList]);
+  const pendingSeriesRequests = useRef<Map<string, Promise<SeriesItem | null>>>(new Map());
   const [selectedSeriesCategoryId, setSelectedSeriesCategoryId] = useState<string>('all');
 
   const [currentPlaying, setCurrentPlaying] = useState<PlayingMedia | null>(null);
@@ -241,12 +246,26 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const connectM3UUrl = useCallback(
     async (rawInputUrl: string, name?: string) => {
       setIsLoading(true);
-      setLoadingMessage('Baixando lista M3U...');
+      setLoadingMessage('Conectando à lista IPTV...');
       setErrorMessage(null);
 
       const cleanUrl = rawInputUrl.trim();
 
+      // 1. Otimização Inteligente: Se o link for gerado por servidor Xtream (get.php/player_api.php), conectar via API ultrarrápida
       try {
+        const urlObj = new URL(cleanUrl);
+        const u = urlObj.searchParams.get('username') || urlObj.searchParams.get('user');
+        const p = urlObj.searchParams.get('password') || urlObj.searchParams.get('pass');
+        if (u && p && (cleanUrl.includes('get.php') || cleanUrl.includes('player_api.php') || cleanUrl.includes('m3u_plus') || cleanUrl.includes(':80/') || cleanUrl.includes(':8080/'))) {
+          const sUrl = `${urlObj.protocol}//${urlObj.host}`;
+          await connectXtream({ serverUrl: sUrl, username: u, password: p }, name || 'Lista IPTV');
+          return;
+        }
+      } catch {}
+
+      // 2. Para arquivos M3U normais/estáticos, baixar e processar diretamente
+      try {
+        setLoadingMessage('Baixando lista M3U...');
         let fetchUrl = cleanUrl;
         if (settings.useCorsProxy && settings.corsProxyUrl) {
           fetchUrl = `${settings.corsProxyUrl}${encodeURIComponent(cleanUrl)}`;
@@ -309,7 +328,7 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
       }
     },
-    [settings]
+    [settings, connectXtream]
   );
 
   const refreshActivePlaylist = useCallback(async (): Promise<{ liveChannels: LiveChannel[] } | null> => {
@@ -406,31 +425,95 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [disconnectPlaylist]);
 
   const fetchSeriesDetails = useCallback(
-    async (seriesId: string | number): Promise<SeriesItem | null> => {
-      const existing = seriesList.find(s => String(s.seriesId || s.id) === String(seriesId));
-      if (!existing) return null;
-
-      if (existing.seasons && existing.seasons.length > 0) {
-        return existing;
+    async (seriesId: string | number, fallbackItem?: SeriesItem): Promise<SeriesItem | null> => {
+      const seriesKey = String(seriesId);
+      if (pendingSeriesRequests.current.has(seriesKey)) {
+        return pendingSeriesRequests.current.get(seriesKey)!;
       }
 
-      if (xtreamInstance && existing.seriesId) {
-        setIsLoading(true);
-        setLoadingMessage('Buscando temporadas e episódios...');
+      const requestPromise = (async () => {
         try {
-          const { seasons } = await xtreamInstance.getSeriesDetails(existing.seriesId);
-          const updatedSeries: SeriesItem = { ...existing, seasons };
-          setSeriesList(prev => prev.map(s => (s.id === existing.id ? updatedSeries : s)));
-          return updatedSeries;
-        } catch (e) {
-          console.error(e);
+          const existing =
+            fallbackItem ||
+            seriesListRef.current.find(
+              s =>
+                String(s.seriesId) === seriesKey ||
+                String(s.id) === seriesKey ||
+                String(s.id).replace('series_', '') === seriesKey
+            );
+
+          if (!existing) return null;
+
+          if (
+            existing.seasons &&
+            existing.seasons.length > 0 &&
+            existing.seasons.some(s => s.episodes && s.episodes.length > 0)
+          ) {
+            setSelectedSeriesForDetails(prev =>
+              prev && (String(prev.id) === String(existing!.id) || String(prev.seriesId) === seriesKey)
+                ? existing!
+                : prev
+            );
+            return existing;
+          }
+
+          if (xtreamInstance) {
+            try {
+              const targetId =
+                existing.seriesId ||
+                parseInt(String(existing.id).replace(/\D+/g, ''), 10) ||
+                existing.id;
+
+              if (targetId) {
+                const { seasons, info } = await xtreamInstance.getSeriesDetails(targetId);
+                if (seasons && seasons.length > 0) {
+                  const updatedSeries: SeriesItem = {
+                    ...existing,
+                    seriesId: targetId,
+                    seasons,
+                    plot: existing.plot || info?.plot,
+                    backdrop:
+                      existing.backdrop ||
+                      (Array.isArray(info?.backdrop_path) ? info?.backdrop_path[0] : info?.backdrop_path) ||
+                      info?.cover,
+                    poster: existing.poster || info?.cover,
+                    genre: existing.genre || info?.genre,
+                    year: existing.year || info?.releaseDate || info?.year,
+                    rating: existing.rating || info?.rating_5based || info?.rating,
+                  };
+                  setSeriesList(prev => prev.map(s => (String(s.id) === String(existing!.id) ? updatedSeries : s)));
+                  setSelectedSeriesForDetails(prev =>
+                    prev && (String(prev.id) === String(existing!.id) || String(prev.seriesId) === String(targetId))
+                      ? updatedSeries
+                      : prev
+                  );
+                  return updatedSeries;
+                }
+              }
+            } catch (e) {
+              console.error('Erro ao buscar episódios da série:', e);
+            }
+          }
+
+          if (existing.seasons && existing.seasons.length > 0) {
+            setSelectedSeriesForDetails(prev =>
+              prev && (String(prev.id) === String(existing!.id) || String(prev.seriesId) === seriesKey)
+                ? existing!
+                : prev
+            );
+            return existing;
+          }
+
+          return existing;
         } finally {
-          setIsLoading(false);
+          pendingSeriesRequests.current.delete(seriesKey);
         }
-      }
-      return existing;
+      })();
+
+      pendingSeriesRequests.current.set(seriesKey, requestPromise);
+      return requestPromise;
     },
-    [seriesList, xtreamInstance]
+    [xtreamInstance]
   );
 
   // Playback handlers

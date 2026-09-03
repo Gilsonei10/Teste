@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useIptv } from '../../context/IptvContext';
 import { SeasonItem, EpisodeItem } from '../../types/iptv';
-import { Play, Star, X, Calendar, Clapperboard, Layers } from 'lucide-react';
+import { Play, Star, X, Calendar, Clapperboard, Layers, RefreshCw } from 'lucide-react';
 
 export const SeriesDetailsModal: React.FC = () => {
   const {
@@ -15,15 +15,78 @@ export const SeriesDetailsModal: React.FC = () => {
 
   const [activeSeasonIndex, setActiveSeasonIndex] = useState<number>(0);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const seriesId = selectedSeriesForDetails?.id;
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    if (selectedSeriesForDetails && (!selectedSeriesForDetails.seasons || selectedSeriesForDetails.seasons.length === 0)) {
-      setIsLoadingDetails(true);
-      fetchSeriesDetails(selectedSeriesForDetails.id).finally(() => {
-        setIsLoadingDetails(false);
-      });
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setActiveSeasonIndex(0);
+    setErrorMessage(null);
+  }, [seriesId]);
+
+  const loadEpisodes = useCallback(async () => {
+    if (!selectedSeriesForDetails) return;
+    const series = selectedSeriesForDetails;
+
+    if (
+      series.seasons &&
+      series.seasons.length > 0 &&
+      series.seasons.some(s => s.episodes && s.episodes.length > 0)
+    ) {
+      setIsLoadingDetails(false);
+      return;
     }
-  }, [selectedSeriesForDetails, fetchSeriesDetails]);
+
+    setIsLoadingDetails(true);
+    setErrorMessage(null);
+
+    try {
+      const updated = await fetchSeriesDetails(series.id, series);
+      if (isMountedRef.current) {
+        if (
+          updated &&
+          updated.seasons &&
+          updated.seasons.length > 0 &&
+          updated.seasons.some(s => s.episodes && s.episodes.length > 0)
+        ) {
+          setSelectedSeriesForDetails(updated);
+        } else {
+          setErrorMessage('Nenhum episódio foi encontrado para esta série.');
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar episódios da série:', err);
+      if (isMountedRef.current) {
+        setErrorMessage('Não foi possível carregar os episódios. Tente novamente.');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingDetails(false);
+      }
+    }
+  }, [selectedSeriesForDetails, fetchSeriesDetails, setSelectedSeriesForDetails]);
+
+  useEffect(() => {
+    if (!selectedSeriesForDetails) return;
+    const hasEpisodes =
+      selectedSeriesForDetails.seasons &&
+      selectedSeriesForDetails.seasons.length > 0 &&
+      selectedSeriesForDetails.seasons.some(s => s.episodes && s.episodes.length > 0);
+
+    if (!hasEpisodes) {
+      loadEpisodes();
+    } else {
+      setIsLoadingDetails(false);
+    }
+  }, [seriesId, loadEpisodes]);
 
   if (!selectedSeriesForDetails) return null;
 
@@ -31,6 +94,8 @@ export const SeriesDetailsModal: React.FC = () => {
   const isFav = isFavorite('series', series.id);
   const seasons: SeasonItem[] = series.seasons || [];
   const currentSeason = seasons[activeSeasonIndex] || seasons[0];
+  const hasEpisodes = seasons.length > 0 && seasons.some(s => s.episodes && s.episodes.length > 0);
+  const showLoading = isLoadingDetails && !hasEpisodes;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-lg flex items-center justify-center p-3 md:p-6 select-none overflow-y-auto">
@@ -146,7 +211,7 @@ export const SeriesDetailsModal: React.FC = () => {
             </div>
 
             {/* Episode List */}
-            {isLoadingDetails ? (
+            {showLoading ? (
               <div className="py-12 flex flex-col items-center justify-center text-slate-400 text-sm gap-2">
                 <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 <span>Carregando episódios da série...</span>
@@ -202,8 +267,15 @@ export const SeriesDetailsModal: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                Nenhum episódio encontrado para esta temporada.
+              <div className="text-center py-8 text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
+                <span>{errorMessage || 'Nenhum episódio encontrado para esta temporada.'}</span>
+                <button
+                  type="button"
+                  onClick={loadEpisodes}
+                  className="px-3.5 py-2 bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Tentar novamente
+                </button>
               </div>
             )}
           </div>

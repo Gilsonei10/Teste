@@ -32,6 +32,7 @@ export const VideoPlayer: React.FC = () => {
     isFavorite,
     settings,
     refreshActivePlaylist,
+    fetchSeriesDetails,
   } = useIptv();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -143,6 +144,39 @@ export const VideoPlayer: React.FC = () => {
     [currentPlaying, refreshActivePlaylist]
   );
 
+  // Attempt auto recovery on series episode
+  const handleAutoEpisodeRecovery = useCallback(async () => {
+    if (isRetryingTokenRef.current || !currentPlaying) return false;
+    isRetryingTokenRef.current = true;
+
+    try {
+      if (currentPlaying.type === 'episode') {
+        const seriesId = currentPlaying.seriesContext?.seriesId || currentPlaying.seriesContext?.id;
+        if (seriesId) {
+          console.info('Buscando link atualizado do episódio no servidor...');
+          const updatedSeries = await fetchSeriesDetails(seriesId);
+          if (updatedSeries && updatedSeries.seasons) {
+            const season = updatedSeries.seasons.find(s => s.seasonNumber === currentPlaying.seasonNum);
+            const freshEp = season?.episodes.find(
+              e => e.episodeNum === currentPlaying.episodeNum || e.id === currentPlaying.id
+            );
+            if (freshEp && freshEp.streamUrl && freshEp.streamUrl !== currentPlaying.streamUrl) {
+              console.info('Link atualizado do episódio obtido! Reiniciando...');
+              isRetryingTokenRef.current = false;
+              startPlayback(freshEp.streamUrl);
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar link do episódio:', e);
+    }
+
+    isRetryingTokenRef.current = false;
+    return false;
+  }, [currentPlaying, fetchSeriesDetails]);
+
   // Initialize playback
   const startPlayback = useCallback(
     (rawUrl: string, forceFormat?: 'hls' | 'ts' | 'native') => {
@@ -161,18 +195,22 @@ export const VideoPlayer: React.FC = () => {
 
       // Format detection
       const lowerRaw = rawUrl.toLowerCase();
-      const isExplicitHls = lowerRaw.endsWith('.m3u8');
+      const isExplicitHls = lowerRaw.endsWith('.m3u8') || lowerRaw.includes('.m3u8');
+      const isEpisodeOrMovie = currentPlaying?.type === 'episode' || currentPlaying?.type === 'movie';
       const isExplicitTs =
-        lowerRaw.endsWith('.ts') ||
-        lowerRaw.includes('/play/') ||
-        lowerRaw.includes('/live/') ||
-        lowerRaw.includes('/auth/');
+        !isEpisodeOrMovie &&
+        (lowerRaw.endsWith('.ts') ||
+          lowerRaw.includes('/play/') ||
+          lowerRaw.includes('/live/') ||
+          lowerRaw.includes('/auth/'));
 
-      let chosenFormat: 'hls' | 'ts' | 'native' = 'ts';
+      let chosenFormat: 'hls' | 'ts' | 'native' = 'native';
       if (forceFormat) {
         chosenFormat = forceFormat;
       } else if (isExplicitHls) {
         chosenFormat = 'hls';
+      } else if (isEpisodeOrMovie) {
+        chosenFormat = 'native';
       } else if (isExplicitTs || currentPlaying?.type === 'live') {
         chosenFormat = 'ts';
       } else {
@@ -224,6 +262,11 @@ export const VideoPlayer: React.FC = () => {
               if (recovered) return;
             }
 
+            if (currentPlaying && currentPlaying.type === 'episode') {
+              startPlayback(rawUrl, 'native');
+              return;
+            }
+
             setPlaybackError('Falha ao decodificar sinal do canal. Tentando recuperar...');
             setIsBuffering(false);
           });
@@ -238,7 +281,7 @@ export const VideoPlayer: React.FC = () => {
         const hls = new Hls({
           maxBufferLength: settings.bufferLengthSeconds || 30,
           enableWorker: false,
-          lowLatencyMode: true,
+          lowLatencyMode: currentPlaying?.type === 'live',
           backBufferLength: 60,
         });
 
@@ -259,9 +302,20 @@ export const VideoPlayer: React.FC = () => {
               if (recovered) return;
             }
 
+            if (currentPlaying && currentPlaying.type === 'episode') {
+              if (chosenFormat === 'hls' && !forceFormat) {
+                startPlayback(rawUrl, 'native');
+                return;
+              }
+            }
+
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                setPlaybackError('Erro de conexão no stream do canal.');
+                setPlaybackError(
+                  currentPlaying?.type === 'episode'
+                    ? 'Erro de conexão no stream do episódio.'
+                    : 'Erro de conexão no stream do canal.'
+                );
                 hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
@@ -269,7 +323,11 @@ export const VideoPlayer: React.FC = () => {
                 hls.recoverMediaError();
                 break;
               default:
-                setPlaybackError('Não foi possível carregar a transmissão.');
+                setPlaybackError(
+                  currentPlaying?.type === 'episode'
+                    ? 'Não foi possível carregar o episódio da série.'
+                    : 'Não foi possível carregar a transmissão.'
+                );
                 hls.destroy();
                 break;
             }
@@ -337,6 +395,21 @@ export const VideoPlayer: React.FC = () => {
         const recovered = await handleAutoTokenRecovery(currentPlaying.id);
         if (recovered) return;
       }
+      if (currentPlaying && currentPlaying.type === 'episode') {
+        if (!isRetryingTokenRef.current) {
+          const recovered = await handleAutoEpisodeRecovery();
+          if (recovered) return;
+        }
+
+        const lowerUrl = (currentPlaying.streamUrl || '').toLowerCase();
+        if (streamFormat === 'native' && lowerUrl.includes('.m3u8') && Hls.isSupported()) {
+          console.info('Vídeo nativo falhou para episódio HLS. Tentando HLS.js...');
+          startPlayback(currentPlaying.streamUrl, 'hls');
+          return;
+        }
+        setPlaybackError('Episódio temporariamente indisponível no servidor do provedor IPTV (Fonte offline ou link expirado).');
+        return;
+      }
       setPlaybackError('Falha ao reproduzir o stream.');
     };
 
@@ -357,7 +430,7 @@ export const VideoPlayer: React.FC = () => {
       video.removeEventListener('durationchange', onDurationChange);
       video.removeEventListener('error', onError);
     };
-  }, [currentPlaying, handleAutoTokenRecovery]);
+  }, [currentPlaying, handleAutoTokenRecovery, handleAutoEpisodeRecovery, streamFormat, startPlayback]);
 
   // Keyboard shortcut handlers for TV Remotes / PC
   useEffect(() => {
@@ -513,47 +586,93 @@ export const VideoPlayer: React.FC = () => {
           <div className="p-4 bg-red-500/20 rounded-full mb-4">
             <AlertTriangle className="w-12 h-12 text-red-400" />
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">Falha na Reprodução do Canal</h3>
+          <h3 className="text-xl font-bold text-white mb-2">
+            {currentPlaying.type === 'episode'
+              ? 'Falha na Reprodução do Episódio'
+              : currentPlaying.type === 'movie'
+              ? 'Falha na Reprodução do Filme'
+              : 'Falha na Reprodução do Canal'}
+          </h3>
           <p className="text-slate-300 text-sm max-w-md text-center mb-6">{playbackError}</p>
 
           <div className="flex flex-wrap gap-3 items-center justify-center max-w-lg">
-            {/* Auto Renovar Token */}
-            <button
-              onClick={async () => {
-                if (currentPlaying) {
-                  setIsBuffering(true);
-                  setPlaybackError(null);
-                  await handleAutoTokenRecovery(currentPlaying.id);
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Renovar Token e Tentar Novamente
-            </button>
+            {currentPlaying.type === 'live' ? (
+              <>
+                {/* Auto Renovar Token */}
+                <button
+                  onClick={async () => {
+                    if (currentPlaying) {
+                      setIsBuffering(true);
+                      setPlaybackError(null);
+                      await handleAutoTokenRecovery(currentPlaying.id);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Renovar Token e Tentar Novamente
+                </button>
 
-            {/* Format Switcher */}
-            <button
-              onClick={() => startPlayback(currentPlaying.streamUrl, 'ts')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
-            >
-              <Tv className="w-4 h-4" />
-              Engine MPEG-TS
-            </button>
+                {/* Format Switcher */}
+                <button
+                  onClick={() => startPlayback(currentPlaying.streamUrl, 'ts')}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  <Tv className="w-4 h-4" />
+                  Engine MPEG-TS
+                </button>
 
-            <button
-              onClick={() => startPlayback(currentPlaying.streamUrl, 'hls')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
-            >
-              <Tv className="w-4 h-4" />
-              Engine HLS
-            </button>
+                <button
+                  onClick={() => startPlayback(currentPlaying.streamUrl, 'hls')}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  <Tv className="w-4 h-4" />
+                  Engine HLS
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Series & Movies Controls */}
+                <button
+                  onClick={() => startPlayback(currentPlaying.streamUrl, 'native')}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  Player Padrão (MP4/Web)
+                </button>
+
+                <button
+                  onClick={() => startPlayback(currentPlaying.streamUrl, 'hls')}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  <Tv className="w-4 h-4" />
+                  Engine HLS
+                </button>
+
+                <button
+                  onClick={async () => {
+                    if (currentPlaying) {
+                      setIsBuffering(true);
+                      setPlaybackError(null);
+                      const recovered = await handleAutoEpisodeRecovery();
+                      if (!recovered) {
+                        startPlayback(currentPlaying.streamUrl);
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Recarregar / Atualizar Link
+                </button>
+              </>
+            )}
 
             <button
               onClick={closePlayer}
               className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-all"
             >
-              Voltar ao Menu
+              Voltar
             </button>
           </div>
         </div>
