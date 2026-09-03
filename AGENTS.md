@@ -26,3 +26,13 @@ Este arquivo define as diretrizes fundamentais e inegociáveis para a atuação 
 ### 6. ESCOPO CIRÚRGICO DE ALTERAÇÃO
 - Quando solicitado para mexer em uma tela ou elemento específico, atente-se e altere exclusivamente aquele alvo.
 - Não mexa em absolutamente nada além do que foi expressamente indicado.
+
+### 7. ESQUEMA DE VERSIONAMENTO E REGRA DO ARQUIVO VERSION (N.N.N)
+- **Formato:** `[Produção].[Beta].[Commit/Dev]` (atualmente em desenvolvimento: `0.0.N`).
+- **Arquivos sincronizados de versão:**
+  - `VERSION` (na raiz do projeto, contendo unicamente a string da versão `N.N.N`).
+  - `package.json` (`"version": "N.N.N"`).
+  - `src/version.ts` (`export const APP_VERSION = 'N.N.N';`).
+- **REGRA DE OURO INEGOCIÁVEL:** **NUNCA COMITAR SEM VERSIONAR.**
+- Toda vez que for solicitado comitar (`add, commit, push` ou similar), obrigatoriamente incrementar em **+1** o último N (`V atual =+ 1`) nos 3 arquivos (`VERSION`, `package.json`, `src/version.ts`) ANTES de executar o `git add` e o `git commit`.
+- A versão é visível ao usuário no rodapé da interface (`vN.N.N`).

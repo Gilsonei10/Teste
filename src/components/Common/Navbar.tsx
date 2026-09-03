@@ -48,7 +48,7 @@ export const Navbar: React.FC = () => {
           </div>
           <div className="hidden sm:block">
             <h1 className="font-extrabold text-lg md:text-xl tracking-tight text-white leading-none">
-              WEB<span className="text-blue-500">IPTV</span>
+              Play Live <span className="text-blue-500">IPTV</span>
             </h1>
             <p className="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Player Universal</p>
           </div>

@@ -12,6 +12,7 @@ import { SettingsModal } from './components/Modals/SettingsModal';
 import { MovieDetailsModal } from './components/Modals/MovieDetailsModal';
 import { SeriesDetailsModal } from './components/Modals/SeriesDetailsModal';
 import { useSpatialNav } from './hooks/useSpatialNav';
+import { APP_VERSION } from './version';
 
 const MainLayout: React.FC = () => {
   const {
@@ -68,32 +69,40 @@ const MainLayout: React.FC = () => {
       </div>
 
       {/* Smart TV Remote Control Helper Footer */}
-      <div className="h-7 bg-tv-surface/80 border-t border-tv-border/50 px-4 flex items-center justify-between text-[11px] text-slate-400 select-none shrink-0">
-        <div className="flex items-center gap-4">
+      <div className="h-7 bg-tv-surface/80 border-t border-tv-border/50 px-3 md:px-4 flex items-center justify-between text-[11px] text-slate-400 select-none shrink-0">
+        <div className="flex items-center gap-3 sm:gap-4 overflow-hidden text-ellipsis whitespace-nowrap">
           <span>
-            <strong className="text-slate-200">D-Pad:</strong> ◀ ▲ ▼ ▶ Navegar
+            <strong className="text-slate-200">D-Pad:</strong> ◀ ▲ ▼ ▶
           </span>
           <span>
-            <strong className="text-slate-200">OK / Enter:</strong> Selecionar
+            <strong className="text-slate-200">OK:</strong> Selecionar
           </span>
           <span>
-            <strong className="text-slate-200">Voltar / Esc:</strong> Retornar
+            <strong className="text-slate-200">Esc:</strong> Voltar
           </span>
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-500" /> Conexão
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-green-500" /> TV Ao Vivo
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-yellow-500" /> Filmes
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-blue-500" /> Séries
-          </span>
+        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          <div className="hidden lg:flex items-center gap-2.5 text-[10px]">
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Conexão
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Ao Vivo
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" /> Filmes
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Séries
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 pl-2 border-l border-tv-border/60">
+            <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono text-[10px] font-semibold tracking-wider">
+              v{APP_VERSION}
+            </span>
+          </div>
         </div>
       </div>
 
