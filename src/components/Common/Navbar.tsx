@@ -9,6 +9,7 @@ export const Navbar: React.FC = () => {
     searchQuery,
     setSearchQuery,
     setIsConnectModalOpen,
+    setIsTvPairingModalOpen,
     setIsSettingsModalOpen,
     activePlaylist,
   } = useIptv();
@@ -95,13 +96,24 @@ export const Navbar: React.FC = () => {
         <button
           data-nav="true"
           onClick={() => setIsConnectModalOpen(true)}
-          className="flex items-center gap-2 px-3 py-1.5 md:py-2 bg-tv-card hover:bg-tv-border border border-tv-border rounded-xl text-xs md:text-sm text-slate-200 hover:text-white transition-all focus:ring-2 focus:ring-blue-400"
+          className="flex items-center gap-2 px-3 py-1.5 md:py-2 bg-tv-card hover:bg-tv-border border border-tv-border rounded-xl text-xs md:text-sm text-slate-200 hover:text-white transition-all focus:ring-2 focus:ring-blue-400 cursor-pointer"
           title="Conexões e Listas"
         >
           <Server className="w-4 h-4 text-blue-400" />
           <span className="hidden sm:inline font-medium max-w-[120px] truncate">
             {activePlaylist ? activePlaylist.name : 'Conectar'}
           </span>
+        </button>
+
+        {/* Smart TV Pairing Quick Button */}
+        <button
+          data-nav="true"
+          onClick={() => setIsTvPairingModalOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 md:py-2 bg-blue-600/15 hover:bg-blue-600/25 border border-blue-500/30 rounded-xl text-xs md:text-sm text-blue-300 hover:text-blue-200 transition-all focus:ring-2 focus:ring-blue-400 cursor-pointer"
+          title="Conectar TV por Código"
+        >
+          <Tv className="w-4 h-4 text-blue-400" />
+          <span className="hidden md:inline font-semibold">Código TV</span>
         </button>
 
         {/* Settings button */}

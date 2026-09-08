@@ -1,25 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useIptv } from '../../context/IptvContext';
-import {
-  Server,
-  Link,
-  FileText,
-  Play,
-  X,
-  Trash2,
-  CheckCircle2,
-  Sparkles,
-  Globe,
-  Share2,
-  Copy,
-  Check,
-  MessageSquare,
-} from 'lucide-react';
+import { Server, Link, FileText, Play, X, Trash2, CheckCircle2, Sparkles, Globe, Tv } from 'lucide-react';
 
 export const ConnectModal: React.FC = () => {
   const {
     isConnectModalOpen,
     setIsConnectModalOpen,
+    setIsTvPairingModalOpen,
+    setIsActivateTvModalOpen,
     connectXtream,
     connectM3UUrl,
     connectM3UFile,
@@ -33,7 +21,7 @@ export const ConnectModal: React.FC = () => {
     setErrorMessage,
   } = useIptv();
 
-  const [activeTab, setActiveTab] = useState<'xtream' | 'm3u' | 'saved' | 'share'>('xtream');
+  const [activeTab, setActiveTab] = useState<'xtream' | 'm3u' | 'saved'>('xtream');
 
   // Xtream Form State
   const [serverUrl, setServerUrl] = useState('');
@@ -44,51 +32,6 @@ export const ConnectModal: React.FC = () => {
   // M3U URL Form State
   const [m3uUrl, setM3uUrl] = useState('');
   const [m3uName, setM3uName] = useState('');
-
-  // Share Form State
-  const [shareMode, setShareMode] = useState<'xtream' | 'm3u'>('xtream');
-  const [shareServer, setShareServer] = useState('');
-  const [shareUser, setShareUser] = useState('');
-  const [sharePass, setSharePass] = useState('');
-  const [shareM3u, setShareM3u] = useState('');
-  const [hasCopied, setHasCopied] = useState(false);
-
-  const savedServers = Array.from(
-    new Set(
-      savedPlaylists
-        .filter(p => p.type === 'xtream' && p.credentials?.serverUrl)
-        .map(p => p.credentials!.serverUrl)
-    )
-  );
-
-  useEffect(() => {
-    if (!shareServer) {
-      if (activePlaylist?.type === 'xtream' && activePlaylist.credentials?.serverUrl) {
-        setShareServer(activePlaylist.credentials.serverUrl);
-      } else if (savedServers.length > 0) {
-        setShareServer(savedServers[0]);
-      }
-    }
-  }, [activePlaylist, savedServers, shareServer]);
-
-  const origin = typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '';
-  let clientGeneratedLink = '';
-  if (shareMode === 'xtream') {
-    if (shareServer.trim() && shareUser.trim() && sharePass.trim()) {
-      clientGeneratedLink = `${origin}?server=${encodeURIComponent(shareServer.trim())}&user=${encodeURIComponent(shareUser.trim())}&pass=${encodeURIComponent(sharePass.trim())}`;
-    }
-  } else {
-    if (shareM3u.trim()) {
-      clientGeneratedLink = `${origin}?m3u=${encodeURIComponent(shareM3u.trim())}`;
-    }
-  }
-
-  const handleCopyLink = () => {
-    if (!clientGeneratedLink) return;
-    navigator.clipboard.writeText(clientGeneratedLink);
-    setHasCopied(true);
-    setTimeout(() => setHasCopied(false), 2500);
-  };
 
   if (!isConnectModalOpen) return null;
 
@@ -140,20 +83,20 @@ export const ConnectModal: React.FC = () => {
           </div>
           <button
             onClick={() => setIsConnectModalOpen(false)}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-tv-border transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-tv-border transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-tv-border bg-tv-bg/50">
+        <div className="grid grid-cols-3 border-b border-tv-border bg-tv-bg/50">
           <button
             onClick={() => {
               setActiveTab('xtream');
               setErrorMessage(null);
             }}
-            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all ${
+            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
               activeTab === 'xtream'
                 ? 'border-blue-500 text-blue-400 bg-tv-surface'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -167,7 +110,7 @@ export const ConnectModal: React.FC = () => {
               setActiveTab('m3u');
               setErrorMessage(null);
             }}
-            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all ${
+            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
               activeTab === 'm3u'
                 ? 'border-blue-500 text-blue-400 bg-tv-surface'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -181,7 +124,7 @@ export const ConnectModal: React.FC = () => {
               setActiveTab('saved');
               setErrorMessage(null);
             }}
-            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all ${
+            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
               activeTab === 'saved'
                 ? 'border-blue-500 text-blue-400 bg-tv-surface'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -189,20 +132,6 @@ export const ConnectModal: React.FC = () => {
           >
             <FileText className="w-4 h-4" />
             Salvas ({savedPlaylists.length})
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('share');
-              setErrorMessage(null);
-            }}
-            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all ${
-              activeTab === 'share'
-                ? 'border-blue-500 text-blue-400 bg-tv-surface'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Share2 className="w-4 h-4" />
-            Gerar Link
           </button>
         </div>
 
@@ -261,7 +190,6 @@ export const ConnectModal: React.FC = () => {
                     className="w-full bg-tv-card border border-tv-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                     Senha <span className="text-red-400">*</span>
@@ -280,7 +208,7 @@ export const ConnectModal: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? (
                   <>
@@ -290,14 +218,14 @@ export const ConnectModal: React.FC = () => {
                 ) : (
                   <>
                     <Play className="w-4 h-4 fill-white" />
-                    <span>Entrar e Carregar Catálogo</span>
+                    <span>Conectar e Carregar Conteúdo</span>
                   </>
                 )}
               </button>
             </form>
           )}
 
-          {/* TAB 2: M3U URL / FILE */}
+          {/* TAB 2: M3U URL & ARQUIVO */}
           {activeTab === 'm3u' && (
             <div className="space-y-5">
               <form onSubmit={handleM3uUrlSubmit} className="space-y-4">
@@ -307,7 +235,7 @@ export const ConnectModal: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: Lista Canais e Filmes"
+                    placeholder="Ex: Minha Lista M3U"
                     value={m3uName}
                     onChange={e => setM3uName(e.target.value)}
                     className="w-full bg-tv-card border border-tv-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
@@ -331,12 +259,12 @@ export const ConnectModal: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   {isLoading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>{loadingMessage || 'Baixando...'}</span>
+                      <span>{loadingMessage || 'Baixando lista...'}</span>
                     </>
                   ) : (
                     <>
@@ -347,29 +275,33 @@ export const ConnectModal: React.FC = () => {
                 </button>
               </form>
 
-              <div className="relative flex items-center justify-center">
-                <div className="border-t border-tv-border w-full" />
-                <span className="bg-tv-surface px-3 text-xs text-slate-500 uppercase tracking-widest absolute">OU</span>
+              {/* Separador OU */}
+              <div className="relative flex py-1 items-center justify-center">
+                <div className="flex-grow border-t border-tv-border"></div>
+                <span className="bg-tv-surface px-3 text-xs text-slate-500 uppercase tracking-widest absolute">
+                  OU
+                </span>
+                <div className="flex-grow border-t border-tv-border"></div>
               </div>
 
-              {/* Upload file */}
+              {/* Upload de Arquivo .m3u local */}
               <div>
                 <label className="flex flex-col items-center justify-center border-2 border-dashed border-tv-border hover:border-blue-500/50 rounded-xl p-4 cursor-pointer bg-tv-card/30 hover:bg-tv-card transition-all">
-                  <FileText className="w-8 h-8 text-blue-400 mb-2" />
+                  <FileText className="w-8 h-8 text-slate-400 mb-2" />
                   <span className="text-sm font-semibold text-white">Carregar Arquivo .M3U / .M3U8</span>
-                  <span className="text-xs text-slate-400 mt-0.5">Selecione o arquivo baixado no seu dispositivo</span>
-                  <input type="file" accept=".m3u,.m3u8,.txt" onChange={handleFileUpload} className="hidden" />
+                  <span className="text-xs text-slate-500 mt-0.5">Selecione o arquivo baixado no seu dispositivo</span>
+                  <input type="file" accept=".m3u,.m3u8" onChange={handleFileUpload} className="hidden" />
                 </label>
               </div>
             </div>
           )}
 
-          {/* TAB 3: SAVED PLAYLISTS */}
+          {/* TAB 3: LISTAS SALVAS */}
           {activeTab === 'saved' && (
             <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
               {savedPlaylists.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-sm">
-                  Nenhuma lista salva ainda. Conecte-se via Xtream ou M3U acima.
+                <div className="text-center py-10 text-slate-400 text-sm">
+                  Nenhuma lista salva ainda. Conecte-se usando Xtream Codes ou M3U para salvar aqui.
                 </div>
               ) : (
                 savedPlaylists.map(playlist => {
@@ -384,12 +316,16 @@ export const ConnectModal: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${isActive ? 'bg-blue-500 text-white' : 'bg-tv-surface text-slate-400'}`}>
-                          {playlist.type === 'xtream' ? <Server className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                        <div
+                          className={`p-2 rounded-lg ${
+                            isActive ? 'bg-blue-500 text-white' : 'bg-tv-surface text-slate-400'
+                          }`}
+                        >
+                          <Server className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm text-white">{playlist.name}</span>
+                          <div className="font-semibold text-sm flex items-center gap-2">
+                            {playlist.name}
                             {isActive && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
                           </div>
                           <span className="text-xs text-slate-400 capitalize">
@@ -410,14 +346,14 @@ export const ConnectModal: React.FC = () => {
                                 loadDemoData();
                               }
                             }}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors"
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                           >
                             Ativar
                           </button>
                         )}
                         <button
                           onClick={() => removeSavedPlaylist(playlist.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
                           title="Excluir lista"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -430,163 +366,50 @@ export const ConnectModal: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: GERAR LINK PARA CLIENTE */}
-          {activeTab === 'share' && (
-            <div className="space-y-4">
-              {/* Sub-mode selection */}
-              <div className="flex bg-tv-bg p-1 rounded-xl border border-tv-border">
-                <button
-                  type="button"
-                  onClick={() => setShareMode('xtream')}
-                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                    shareMode === 'xtream' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Dados Xtream Codes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShareMode('m3u')}
-                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                    shareMode === 'm3u' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Link M3U / URL Direto
-                </button>
+          {/* Atalho Especial: Pareamento Smart TV */}
+          <div className="mt-5 p-3.5 bg-blue-600/10 border border-blue-500/20 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-left">
+              <div className="p-2 rounded-xl bg-blue-600/20 text-blue-400">
+                <Tv className="w-5 h-5" />
               </div>
-
-              {shareMode === 'xtream' ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                      Servidor / DNS *
-                    </label>
-                    <input
-                      type="text"
-                      list="saved-servers-list"
-                      value={shareServer}
-                      onChange={e => setShareServer(e.target.value)}
-                      placeholder="http://servidor.com:80"
-                      className="w-full bg-tv-card border border-tv-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    />
-                    {savedServers.length > 0 && (
-                      <datalist id="saved-servers-list">
-                        {savedServers.map((s, idx) => (
-                          <option key={idx} value={s} />
-                        ))}
-                      </datalist>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                        Usuário do Cliente *
-                      </label>
-                      <input
-                        type="text"
-                        value={shareUser}
-                        onChange={e => setShareUser(e.target.value)}
-                        placeholder="cliente10"
-                        className="w-full bg-tv-card border border-tv-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                        Senha do Cliente *
-                      </label>
-                      <input
-                        type="text"
-                        value={sharePass}
-                        onChange={e => setSharePass(e.target.value)}
-                        placeholder="123456"
-                        className="w-full bg-tv-card border border-tv-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Link M3U / M3U8 do Cliente *
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={shareM3u}
-                    onChange={e => setShareM3u(e.target.value)}
-                    placeholder="http://servidor.com:80/get.php?username=...&password=...&type=m3u_plus&output=m3u8"
-                    className="w-full bg-tv-card border border-tv-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none font-mono text-xs"
-                  />
-                </div>
-              )}
-
-              {/* Box de Resultado & Copiar */}
-              {clientGeneratedLink ? (
-                <div className="mt-4 p-3.5 bg-blue-600/10 border border-blue-500/30 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" /> Link de Acesso Pronto:
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">Conexão Automática</span>
-                  </div>
-
-                  <div className="p-2.5 bg-tv-card rounded-lg border border-tv-border text-xs font-mono text-slate-200 break-all select-all">
-                    {clientGeneratedLink}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyLink}
-                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      {hasCopied ? (
-                        <>
-                          <Check className="w-4 h-4 text-green-300" />
-                          Copiado com Sucesso!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          Copiar Link
-                        </>
-                      )}
-                    </button>
-
-                    <a
-                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                        `Olá! Aqui está o seu acesso ao Play Live IPTV:\n\n${clientGeneratedLink}\n\nBasta clicar no link acima para abrir o player e começar a assistir!`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-1.5 text-center"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      Enviar no WhatsApp
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3.5 bg-tv-card/50 border border-tv-border/60 rounded-xl text-center text-xs text-slate-400">
-                  Preencha os campos acima para gerar o link de acesso direto do cliente.
-                </div>
-              )}
-
-              <p className="text-[11px] text-slate-500 text-center">
-                Ao clicar no link, o player entrará diretamente na lista do cliente e salvará o acesso no navegador dele.
-              </p>
+              <div>
+                <h4 className="text-xs font-bold text-white">Assistindo em uma Smart TV?</h4>
+                <p className="text-[11px] text-slate-400">Conecte por código sem precisar digitar no controle</p>
+              </div>
             </div>
-          )}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConnectModalOpen(false);
+                  setIsTvPairingModalOpen(true);
+                }}
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-600/30 cursor-pointer"
+              >
+                Ver Código da TV
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConnectModalOpen(false);
+                  setIsActivateTvModalOpen(true);
+                }}
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-tv-card hover:bg-tv-border border border-tv-border text-slate-200 hover:text-white text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                Ativar uma TV
+              </button>
+            </div>
+          </div>
 
           {/* Demo Button Footer */}
-          <div className="mt-6 pt-4 border-t border-tv-border flex items-center justify-between">
+          <div className="mt-4 pt-3 border-t border-tv-border flex items-center justify-between">
             <span className="text-xs text-slate-400">Quer apenas testar o player?</span>
             <button
               onClick={() => {
                 loadDemoData();
                 setIsConnectModalOpen(false);
               }}
-              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors"
+              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
               Carregar Demonstração Gratuita

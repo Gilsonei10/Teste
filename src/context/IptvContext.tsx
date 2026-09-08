@@ -47,6 +47,12 @@ interface IptvContextType {
   // Modals & Panels
   isConnectModalOpen: boolean;
   setIsConnectModalOpen: (open: boolean) => void;
+  isTvPairingModalOpen: boolean;
+  setIsTvPairingModalOpen: (open: boolean) => void;
+  isActivateTvModalOpen: boolean;
+  setIsActivateTvModalOpen: (open: boolean) => void;
+  activateInitialCode: string;
+  setActivateInitialCode: (code: string) => void;
   isSettingsModalOpen: boolean;
   setIsSettingsModalOpen: (open: boolean) => void;
   selectedMovieForDetails: MovieItem | null;
@@ -116,6 +122,9 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [isConnectModalOpen, setIsConnectModalOpen] = useState<boolean>(false);
+  const [isTvPairingModalOpen, setIsTvPairingModalOpen] = useState<boolean>(false);
+  const [isActivateTvModalOpen, setIsActivateTvModalOpen] = useState<boolean>(false);
+  const [activateInitialCode, setActivateInitialCode] = useState<string>('');
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const [selectedMovieForDetails, setSelectedMovieForDetails] = useState<MovieItem | null>(null);
   const [selectedSeriesForDetails, setSelectedSeriesForDetails] = useState<SeriesItem | null>(null);
@@ -607,49 +616,17 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [favorites]
   );
 
-  // Auto-load on mount (URL parameters or saved playlist)
+  // Auto-load on mount (or QR code / TV activation link)
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.search) {
-      const search = window.location.search;
-      const params = new URLSearchParams(search);
-
-      const m3uParam = params.get('m3u') || params.get('url');
-      if (m3uParam) {
-        let fullM3u = m3uParam;
-        const match = search.match(/[?&](?:m3u|url)=([^#]*)/i);
-        if (match) {
-          try {
-            fullM3u = decodeURIComponent(match[1]);
-          } catch {
-            fullM3u = match[1];
-          }
-        }
-        const nameParam = params.get('name') || 'Lista Cliente';
-        connectM3UUrl(fullM3u, nameParam).then(() => {
-          try {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } catch {}
-        });
-        return;
-      }
-
-      const serverParam = params.get('server') || params.get('host');
-      const userParam = params.get('user') || params.get('username');
-      const passParam = params.get('pass') || params.get('password');
-      if (serverParam && userParam && passParam) {
-        const nameParam = params.get('name') || userParam;
-        connectXtream(
-          {
-            serverUrl: serverParam,
-            username: userParam,
-            password: passParam,
-          },
-          nameParam
-        ).then(() => {
-          try {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } catch {}
-        });
+      const params = new URLSearchParams(window.location.search);
+      const activateCode = params.get('activate') || params.get('pair');
+      if (activateCode) {
+        setActivateInitialCode(activateCode.replace(/\D/g, ''));
+        setIsActivateTvModalOpen(true);
+        try {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch {}
         return;
       }
     }
@@ -677,6 +654,12 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSearchQuery,
         isConnectModalOpen,
         setIsConnectModalOpen,
+        isTvPairingModalOpen,
+        setIsTvPairingModalOpen,
+        isActivateTvModalOpen,
+        setIsActivateTvModalOpen,
+        activateInitialCode,
+        setActivateInitialCode,
         isSettingsModalOpen,
         setIsSettingsModalOpen,
         selectedMovieForDetails,

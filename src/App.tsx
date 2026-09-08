@@ -8,6 +8,8 @@ import { SeriesView } from './components/Views/SeriesView';
 import { FavoritesView } from './components/Views/FavoritesView';
 import { VideoPlayer } from './components/Player/VideoPlayer';
 import { ConnectModal } from './components/Modals/ConnectModal';
+import { TvPairingModal } from './components/Modals/TvPairingModal';
+import { ActivateTvModal } from './components/Modals/ActivateTvModal';
 import { SettingsModal } from './components/Modals/SettingsModal';
 import { MovieDetailsModal } from './components/Modals/MovieDetailsModal';
 import { SeriesDetailsModal } from './components/Modals/SeriesDetailsModal';
@@ -26,6 +28,11 @@ const MainLayout: React.FC = () => {
     setSelectedSeriesForDetails,
     isConnectModalOpen,
     setIsConnectModalOpen,
+    isTvPairingModalOpen,
+    setIsTvPairingModalOpen,
+    isActivateTvModalOpen,
+    setIsActivateTvModalOpen,
+    activateInitialCode,
     isSettingsModalOpen,
     setIsSettingsModalOpen,
     settings,
@@ -111,6 +118,20 @@ const MainLayout: React.FC = () => {
 
       {/* Connection & Auth Modal */}
       <ConnectModal />
+
+      {/* Smart TV Pairing Modal (Shows 6-digit code on TV) */}
+      <TvPairingModal
+        isOpen={isTvPairingModalOpen}
+        onClose={() => setIsTvPairingModalOpen(false)}
+        onOpenActivate={() => setIsActivateTvModalOpen(true)}
+      />
+
+      {/* Activate Smart TV Modal (Input 6 digits to pair from phone/PC) */}
+      <ActivateTvModal
+        isOpen={isActivateTvModalOpen}
+        onClose={() => setIsActivateTvModalOpen(false)}
+        initialCode={activateInitialCode}
+      />
 
       {/* Settings Modal */}
       <SettingsModal />
