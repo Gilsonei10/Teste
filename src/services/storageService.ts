@@ -42,23 +42,62 @@ export const StorageService = {
     }
   },
 
+  isSamePlaylist(a: SavedPlaylist, b: SavedPlaylist): boolean {
+    if (a.id === b.id) return true;
+    if (a.type === 'xtream' && b.type === 'xtream' && a.credentials && b.credentials) {
+      const urlA = (a.credentials.serverUrl || '').replace(/\/+$/, '').toLowerCase();
+      const urlB = (b.credentials.serverUrl || '').replace(/\/+$/, '').toLowerCase();
+      const userA = (a.credentials.username || '').trim().toLowerCase();
+      const userB = (b.credentials.username || '').trim().toLowerCase();
+      return urlA === urlB && userA === userB;
+    }
+    if (a.type === 'm3u_url' && b.type === 'm3u_url' && a.url && b.url) {
+      return a.url.trim().toLowerCase() === b.url.trim().toLowerCase();
+    }
+    if (a.type === 'demo' && b.type === 'demo') return true;
+    return false;
+  },
+
   getPlaylists(): SavedPlaylist[] {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PLAYLISTS);
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const list: SavedPlaylist[] = JSON.parse(saved);
+      if (!Array.isArray(list)) return [];
+
+      const unique: SavedPlaylist[] = [];
+      for (const p of list) {
+        const isDuplicate = unique.some(existing => this.isSamePlaylist(existing, p));
+        if (!isDuplicate) {
+          unique.push(p);
+        }
+      }
+      if (unique.length !== list.length) {
+        localStorage.setItem(STORAGE_KEYS.PLAYLISTS, JSON.stringify(unique));
+      }
+      return unique;
     } catch {
       return [];
     }
   },
 
-  savePlaylist(playlist: SavedPlaylist): void {
+  savePlaylist(playlist: SavedPlaylist): SavedPlaylist {
     try {
-      const playlists = this.getPlaylists().filter(p => p.id !== playlist.id);
-      playlists.unshift(playlist);
+      const existingPlaylists = this.getPlaylists();
+      const existing = existingPlaylists.find(p => this.isSamePlaylist(p, playlist));
+
+      const playlistToSave: SavedPlaylist = existing
+        ? { ...playlist, id: existing.id, createdAt: existing.createdAt }
+        : playlist;
+
+      const playlists = existingPlaylists.filter(p => !this.isSamePlaylist(p, playlistToSave));
+      playlists.unshift(playlistToSave);
       localStorage.setItem(STORAGE_KEYS.PLAYLISTS, JSON.stringify(playlists));
-      this.setActivePlaylist(playlist);
+      this.setActivePlaylist(playlistToSave);
+      return playlistToSave;
     } catch (e) {
       console.error('Error saving playlist', e);
+      return playlist;
     }
   },
 

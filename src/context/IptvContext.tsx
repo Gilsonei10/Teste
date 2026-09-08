@@ -178,8 +178,8 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       type: 'demo',
       createdAt: Date.now(),
     };
-    StorageService.savePlaylist(demoPlaylist);
-    setActivePlaylistState(demoPlaylist);
+    const saved = StorageService.savePlaylist(demoPlaylist);
+    setActivePlaylistState(saved);
     setSavedPlaylists(StorageService.getPlaylists());
     setIsLoading(false);
   }, []);
@@ -229,8 +229,8 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: Date.now(),
         };
 
-        StorageService.savePlaylist(playlist);
-        setActivePlaylistState(playlist);
+        const saved = StorageService.savePlaylist(playlist);
+        setActivePlaylistState(saved);
         setSavedPlaylists(StorageService.getPlaylists());
         setIsConnectModalOpen(false);
         return true;
@@ -334,8 +334,8 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: Date.now(),
         };
 
-        StorageService.savePlaylist(playlist);
-        setActivePlaylistState(playlist);
+        const saved = StorageService.savePlaylist(playlist);
+        setActivePlaylistState(saved);
         setSavedPlaylists(StorageService.getPlaylists());
         setIsConnectModalOpen(false);
       } catch (err: any) {
@@ -404,8 +404,8 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: Date.now(),
         };
 
-        StorageService.savePlaylist(playlist);
-        setActivePlaylistState(playlist);
+        const saved = StorageService.savePlaylist(playlist);
+        setActivePlaylistState(saved);
         setSavedPlaylists(StorageService.getPlaylists());
         setIsConnectModalOpen(false);
       } catch (err: any) {
