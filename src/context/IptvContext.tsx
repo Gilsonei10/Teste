@@ -607,8 +607,53 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [favorites]
   );
 
-  // Auto-load on mount
+  // Auto-load on mount (URL parameters or saved playlist)
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search) {
+      const search = window.location.search;
+      const params = new URLSearchParams(search);
+
+      const m3uParam = params.get('m3u') || params.get('url');
+      if (m3uParam) {
+        let fullM3u = m3uParam;
+        const match = search.match(/[?&](?:m3u|url)=([^#]*)/i);
+        if (match) {
+          try {
+            fullM3u = decodeURIComponent(match[1]);
+          } catch {
+            fullM3u = match[1];
+          }
+        }
+        const nameParam = params.get('name') || 'Lista Cliente';
+        connectM3UUrl(fullM3u, nameParam).then(() => {
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {}
+        });
+        return;
+      }
+
+      const serverParam = params.get('server') || params.get('host');
+      const userParam = params.get('user') || params.get('username');
+      const passParam = params.get('pass') || params.get('password');
+      if (serverParam && userParam && passParam) {
+        const nameParam = params.get('name') || userParam;
+        connectXtream(
+          {
+            serverUrl: serverParam,
+            username: userParam,
+            password: passParam,
+          },
+          nameParam
+        ).then(() => {
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {}
+        });
+        return;
+      }
+    }
+
     const active = StorageService.getActivePlaylist();
     if (active) {
       if (active.type === 'demo') {
