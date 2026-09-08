@@ -1,6 +1,6 @@
-const http = require('http');
-const https = require('https');
-const { URL } = require('url');
+import http from 'http';
+import https from 'https';
+import { URL } from 'url';
 
 const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
@@ -12,24 +12,30 @@ function fetchUrlWithRedirects(targetUrl, method, clientHeaders, redirectCount =
     }
 
     try {
-      const urlObj = new URL(targetUrl);
+      const cleanTarget = targetUrl.split('#')[0];
+      const urlObj = new URL(cleanTarget);
       const isHttps = urlObj.protocol === 'https:';
       const client = isHttps ? https : http;
       const agent = isHttps ? httpsAgent : httpAgent;
 
+      const host =
+        urlObj.port && urlObj.port !== '80' && urlObj.port !== '443'
+          ? `${urlObj.hostname}:${urlObj.port}`
+          : urlObj.hostname;
+
       const headers = {
-        'Host': urlObj.host,
+        'Host': host,
         'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
         'Accept': '*/*',
         'Connection': 'keep-alive',
       };
 
-      if (clientHeaders['range']) {
+      if (clientHeaders && clientHeaders['range']) {
         headers['Range'] = clientHeaders['range'];
       }
 
       const req = client.request(
-        targetUrl,
+        cleanTarget,
         {
           method: method || 'GET',
           headers,
@@ -39,13 +45,13 @@ function fetchUrlWithRedirects(targetUrl, method, clientHeaders, redirectCount =
           if ([301, 302, 303, 307, 308].includes(res.statusCode || 0) && res.headers.location) {
             const redirectLocation = res.headers.location.startsWith('http')
               ? res.headers.location
-              : new URL(res.headers.location, targetUrl).href;
+              : new URL(res.headers.location, cleanTarget).href;
 
             res.resume();
             return resolve(fetchUrlWithRedirects(redirectLocation, method, clientHeaders, redirectCount + 1));
           }
 
-          resolve({ res, finalUrl: targetUrl });
+          resolve({ res, finalUrl: cleanTarget });
         }
       );
 
@@ -57,12 +63,13 @@ function fetchUrlWithRedirects(targetUrl, method, clientHeaders, redirectCount =
   });
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', '*');
-    res.status(204).end();
+    res.statusCode = 204;
+    res.end();
     return;
   }
 
@@ -70,7 +77,9 @@ module.exports = async (req, res) => {
   const urlParamIndex = rawUrl.indexOf('url=');
 
   if (urlParamIndex === -1 && !req.query?.url) {
-    res.status(400).setHeader('Access-Control-Allow-Origin', '*').end('Parametro URL ausente');
+    res.statusCode = 400;
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end('Parametro URL ausente');
     return;
   }
 
@@ -101,6 +110,16 @@ module.exports = async (req, res) => {
       res.setHeader('Accept-Ranges', proxyRes.headers['accept-ranges']);
     }
 
+    // Repassar status de erro diretamente
+    if (proxyRes.statusCode && proxyRes.statusCode >= 400) {
+      res.statusCode = proxyRes.statusCode;
+      if (proxyRes.headers['content-type']) {
+        res.setHeader('Content-Type', proxyRes.headers['content-type']);
+      }
+      proxyRes.pipe(res);
+      return;
+    }
+
     const isM3uPlaylistFile =
       finalUrl.includes('get.php') ||
       finalUrl.includes('type=m3u') ||
@@ -108,7 +127,7 @@ module.exports = async (req, res) => {
       contentType.includes('octet-stream');
 
     if (isM3uPlaylistFile) {
-      res.status(proxyRes.statusCode || 200);
+      res.statusCode = proxyRes.statusCode || 200;
       if (proxyRes.headers['content-type']) {
         res.setHeader('Content-Type', proxyRes.headers['content-type']);
       }
@@ -120,7 +139,7 @@ module.exports = async (req, res) => {
 
     proxyRes.once('data', firstChunk => {
       hasHandledFirstChunk = true;
-      res.status(proxyRes.statusCode || 200);
+      res.statusCode = proxyRes.statusCode || 200;
 
       const isM3u8Text = firstChunk.toString('utf8', 0, 15).trim().startsWith('#EXT');
 
@@ -185,7 +204,8 @@ module.exports = async (req, res) => {
 
     proxyRes.once('end', () => {
       if (!hasHandledFirstChunk) {
-        res.status(proxyRes.statusCode || 200).end();
+        res.statusCode = proxyRes.statusCode || 200;
+        res.end();
       }
     });
 
@@ -194,7 +214,9 @@ module.exports = async (req, res) => {
     });
   } catch (err) {
     if (!res.headersSent) {
-      res.status(502).setHeader('Access-Control-Allow-Origin', '*').end(`Erro no proxy: ${err.message}`);
+      res.statusCode = 502;
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(`Erro no proxy: ${err.message}`);
     }
   }
-};
+}
