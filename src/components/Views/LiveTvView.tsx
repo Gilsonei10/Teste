@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useIptv } from '../../context/IptvContext';
 import { LiveChannel } from '../../types/iptv';
-import { Tv, Star, Play, Filter } from 'lucide-react';
+import { Tv, Star, Play, Filter, Search, X } from 'lucide-react';
 
 export const LiveTvView: React.FC = () => {
   const {
@@ -10,6 +10,7 @@ export const LiveTvView: React.FC = () => {
     selectedLiveCategoryId,
     setSelectedLiveCategoryId,
     searchQuery,
+    setSearchQuery,
     playLiveChannel,
     toggleFavorite,
     isFavorite,
@@ -85,15 +86,37 @@ export const LiveTvView: React.FC = () => {
       {/* Main Channels Content */}
       <main className="flex-1 flex flex-col h-full bg-tv-bg overflow-hidden">
         {/* Header Bar */}
-        <div className="p-4 border-b border-tv-border flex items-center justify-between bg-tv-surface/40">
+        <div className="p-3 sm:p-4 border-b border-tv-border flex flex-wrap items-center justify-between gap-3 bg-tv-surface/40 shrink-0">
           <div>
-            <h2 className="text-base md:text-lg font-bold text-white flex items-center gap-2">
-              <Tv className="w-5 h-5 text-blue-500" />
+            <h2 className="text-sm sm:text-base md:text-lg font-bold text-white flex items-center gap-2">
+              <Tv className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
               <span>Grade de TV Ao Vivo</span>
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-400">
               Mostrando {filteredChannels.length} canais disponíveis
             </p>
+          </div>
+
+          {/* Search Bar with Magnifying Glass */}
+          <div className="relative w-full sm:w-64 md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar canais de TV..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-tv-card border border-tv-border rounded-xl pl-9 pr-8 py-1.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+                title="Limpar busca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

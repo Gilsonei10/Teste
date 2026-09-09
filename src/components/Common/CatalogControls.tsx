@@ -1,7 +1,8 @@
 import React from 'react';
 import { Category } from '../../types/iptv';
 import { SortOption, cleanCategoryName } from '../../utils/mediaUtils';
-import { Filter, ArrowUpDown, LayoutGrid, Rows3 } from 'lucide-react';
+import { Filter, ArrowUpDown, LayoutGrid, Rows3, Search, X } from 'lucide-react';
+import { useIptv } from '../../context/IptvContext';
 
 interface CatalogControlsProps {
   categories: Category[];
@@ -28,13 +29,15 @@ export const CatalogControls: React.FC<CatalogControlsProps> = ({
   onViewModeChange,
   themeColor,
 }) => {
+  const { searchQuery, setSearchQuery } = useIptv();
+
   const activeColorBg = themeColor === 'purple' ? 'bg-purple-600' : 'bg-blue-600';
   const activeColorShadow = themeColor === 'purple' ? 'shadow-purple-600/30' : 'shadow-blue-600/30';
   const activeColorText = themeColor === 'purple' ? 'text-purple-400' : 'text-blue-400';
 
   return (
     <div className="space-y-4">
-      {/* Top Bar: Controls, Sorting and View Mode */}
+      {/* Top Bar: Controls, Search, Sorting and View Mode */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-tv-card/60 p-3 rounded-2xl border border-tv-border">
         {/* Left: Section Summary & View Mode Toggle */}
         <div className="flex items-center gap-3">
@@ -66,16 +69,38 @@ export const CatalogControls: React.FC<CatalogControlsProps> = ({
             </button>
           </div>
 
-          <span className="text-xs text-slate-400 font-medium hidden sm:inline">
+          <span className="text-xs text-slate-400 font-medium hidden md:inline">
             Exibindo <strong className="text-white">{filteredCount}</strong> de {totalItemsCount}
           </span>
         </div>
 
+        {/* Center: Search with Magnifying Glass */}
+        <div className="relative flex-1 min-w-[160px] max-w-sm order-3 sm:order-2 w-full sm:w-auto">
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${activeColorText} pointer-events-none`} />
+          <input
+            type="text"
+            placeholder={themeColor === 'purple' ? 'Buscar séries...' : 'Buscar filmes...'}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-tv-surface border border-tv-border rounded-xl pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+              title="Limpar busca"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
         {/* Right: Sort Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 order-2 sm:order-3">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold mr-1">
             <ArrowUpDown className={`w-3.5 h-3.5 ${activeColorText}`} />
-            <span>Ordenar por:</span>
+            <span className="hidden sm:inline">Ordenar por:</span>
           </div>
 
           <select

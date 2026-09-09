@@ -1,6 +1,6 @@
 import React from 'react';
 import { useIptv, MainSection } from '../../context/IptvContext';
-import { Home, Tv, Film, Clapperboard, Star, Search, Settings, Server, Maximize2, Minimize2 } from 'lucide-react';
+import { Home, Tv, Film, Clapperboard, Star, Search, Settings, Server, Maximize2, Minimize2, X } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const {
@@ -15,6 +15,7 @@ export const Navbar: React.FC = () => {
   } = useIptv();
 
   const [isFullscreen, setIsFullscreen] = React.useState<boolean>(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = React.useState<boolean>(false);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -35,7 +36,39 @@ export const Navbar: React.FC = () => {
   ];
 
   return (
-    <header className="h-16 md:h-20 bg-tv-surface border-b border-tv-border px-3 md:px-6 flex items-center justify-between z-30 shrink-0 select-none">
+    <header className="relative h-16 md:h-20 bg-tv-surface border-b border-tv-border px-3 md:px-6 flex items-center justify-between z-30 shrink-0 select-none">
+      {/* Mobile Search Overlay when expanded */}
+      {isMobileSearchOpen && (
+        <div className="absolute inset-x-2 inset-y-2 z-50 bg-tv-surface border-2 border-blue-500 rounded-2xl px-3 flex items-center gap-2.5 shadow-2xl">
+          <Search className="w-4 h-4 text-blue-400 shrink-0" />
+          <input
+            autoFocus
+            type="text"
+            placeholder="Buscar canais, filmes, séries..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none py-1"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="p-1 text-slate-400 hover:text-white"
+              title="Limpar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsMobileSearchOpen(false)}
+            className="px-2.5 py-1 text-xs font-semibold bg-tv-card hover:bg-tv-border border border-tv-border rounded-lg text-slate-200"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {/* Brand & Logo */}
       <div className="flex items-center gap-3 md:gap-6">
         <button
@@ -80,17 +113,40 @@ export const Navbar: React.FC = () => {
 
       {/* Right Action Icons & Search */}
       <div className="flex items-center gap-2 md:gap-3">
-        {/* Search input */}
-        <div className="relative hidden lg:block w-48 xl:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        {/* Search input (visible on mobile landscape, tablets and desktop) */}
+        <div className="relative hidden sm:block w-36 sm:w-44 md:w-56 xl:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Buscar canais, filmes..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-tv-card border border-tv-border rounded-xl pl-9 pr-3 py-1.5 text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+            className="w-full bg-tv-card border border-tv-border rounded-xl pl-9 pr-8 py-1.5 text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+              title="Limpar busca"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
+
+        {/* Mobile Search Button (< sm) */}
+        <button
+          data-nav="true"
+          onClick={() => setIsMobileSearchOpen(true)}
+          className="sm:hidden p-2 bg-tv-card hover:bg-tv-border border border-tv-border rounded-xl text-slate-300 hover:text-white transition-all focus:ring-2 focus:ring-blue-400 relative"
+          title="Buscar canais, filmes..."
+        >
+          <Search className="w-4 h-4" />
+          {searchQuery && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+          )}
+        </button>
 
         {/* Connection / Playlist button */}
         <button
