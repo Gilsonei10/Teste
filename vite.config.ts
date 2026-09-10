@@ -250,6 +250,7 @@ function corsProxyPlugin(): Plugin {
 }
 
 export default defineConfig({
+  base: './',
   plugins: [react(), corsProxyPlugin()],
   server: {
     port: 3000,
