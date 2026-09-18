@@ -22,7 +22,18 @@ export function useSpatialNav({ onBack, onEnter, enabled = true }: SpatialNavOpt
       const target = e.target as HTMLElement;
       const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (isInput) {
-        if (keyName === 'Escape' || keyCode === 27 || keyCode === 10009 || keyCode === 461) {
+        if (
+          keyName === 'Escape' ||
+          keyName === 'Back' ||
+          keyName === 'GoBack' ||
+          keyName === 'BrowserBack' ||
+          keyCode === 27 ||
+          keyCode === 10009 ||
+          keyCode === 461 ||
+          keyCode === 4
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
           target.blur();
           if (onBack) onBack();
         }
@@ -70,8 +81,9 @@ export function useSpatialNav({ onBack, onEnter, enabled = true }: SpatialNavOpt
         keyCode === 4;
 
       if (isBackKey) {
+        e.preventDefault();
+        e.stopPropagation();
         if (onBack) {
-          e.preventDefault();
           onBack();
         }
         return;
@@ -163,10 +175,54 @@ export function useSpatialNav({ onBack, onEnter, enabled = true }: SpatialNavOpt
     [enabled, onBack, onEnter, setActiveSection, setIsConnectModalOpen, setIsSettingsModalOpen]
   );
 
+  const handleKeyUp = useCallback((e: KeyboardEvent) => {
+    const keyCode = e.keyCode || e.which;
+    const keyName = e.key;
+    if (
+      keyName === 'Escape' ||
+      keyName === 'BrowserBack' ||
+      keyName === 'Back' ||
+      keyName === 'GoBack' ||
+      keyName === 'XF86Back' ||
+      keyCode === 27 ||
+      keyCode === 10009 ||
+      keyCode === 461 ||
+      keyCode === 4
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, []);
+
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
+    // Intercept back key at capture phase to prevent TV OS / browser default back navigation
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
     };
-  }, [handleKeyDown]);
+  }, [handleKeyDown, handleKeyUp]);
+
+  useEffect(() => {
+    // Prevent default browser back from closing the app (History API fallback)
+    try {
+      window.history.pushState({ app: 'iptv' }, '', window.location.href);
+    } catch {}
+
+    const handlePopState = () => {
+      try {
+        window.history.pushState({ app: 'iptv' }, '', window.location.href);
+      } catch {}
+      if (onBack) {
+        onBack();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onBack]);
 }

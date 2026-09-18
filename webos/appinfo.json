@@ -1,6 +1,6 @@
 {
   "id": "com.antigravity.webiptv",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "vendor": "Antigravity",
   "type": "web",
   "main": "index.html",
@@ -8,6 +8,7 @@
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
   "disableBackHistoryFilter": true,
   "allowExternalAccess": true,
   "trustLevel": "trusted",

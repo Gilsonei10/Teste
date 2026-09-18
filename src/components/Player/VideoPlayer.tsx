@@ -437,6 +437,25 @@ export const VideoPlayer: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       showControls();
 
+      const keyCode = e.keyCode || e.which;
+      const isBackKey =
+        e.key === 'Escape' ||
+        e.key === 'BrowserBack' ||
+        e.key === 'Back' ||
+        e.key === 'GoBack' ||
+        e.key === 'XF86Back' ||
+        keyCode === 27 ||
+        keyCode === 10009 ||
+        keyCode === 461 ||
+        keyCode === 4;
+
+      if (isBackKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        closePlayer();
+        return;
+      }
+
       switch (e.key) {
         case ' ':
           e.preventDefault();
@@ -474,16 +493,11 @@ export const VideoPlayer: React.FC = () => {
         case 'F':
           toggleFullscreen();
           break;
-        case 'Escape':
-        case 'BrowserBack':
-        case 'Back':
-          closePlayer();
-          break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isPlaying, duration, currentPlaying, showControls, playNextChannel, playPrevChannel, closePlayer]);
 
   if (!currentPlaying) return null;

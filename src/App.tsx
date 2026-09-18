@@ -47,6 +47,10 @@ const MainLayout: React.FC = () => {
         setSelectedMovieForDetails(null);
       } else if (selectedSeriesForDetails) {
         setSelectedSeriesForDetails(null);
+      } else if (isTvPairingModalOpen) {
+        setIsTvPairingModalOpen(false);
+      } else if (isActivateTvModalOpen) {
+        setIsActivateTvModalOpen(false);
       } else if (isConnectModalOpen) {
         setIsConnectModalOpen(false);
       } else if (isSettingsModalOpen) {
