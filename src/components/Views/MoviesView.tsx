@@ -101,7 +101,7 @@ export const MoviesView: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-tv-bg overflow-y-auto scrollbar-thin">
       {/* Featured Hero Banner */}
       {featuredMovie && !searchQuery && selectedMovieCategoryId === 'all' && (
-        <div className="relative h-64 sm:h-80 md:h-96 w-full bg-tv-card overflow-hidden shrink-0">
+        <div className="relative h-44 sm:h-64 md:h-80 w-full bg-tv-card overflow-hidden shrink-0">
           <img
             src={featuredMovie.backdrop || featuredMovie.poster}
             alt={cleanMediaTitle(featuredMovie.title || featuredMovie.name)}

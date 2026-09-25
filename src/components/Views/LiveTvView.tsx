@@ -42,32 +42,32 @@ export const LiveTvView: React.FC = () => {
   }, [liveChannels, selectedLiveCategoryId, searchQuery, isFavorite, favorites.live]);
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+    <div className="flex-1 flex flex-col sm:flex-row h-full overflow-hidden">
       {/* Category Sidebar */}
-      <aside className="w-full md:w-64 lg:w-72 bg-tv-surface/90 border-r border-tv-border flex flex-col shrink-0">
-        <div className="p-4 border-b border-tv-border flex items-center justify-between">
-          <div className="flex items-center gap-2 text-white font-bold text-sm">
-            <Filter className="w-4 h-4 text-blue-400" />
+      <aside className="w-full sm:w-52 md:w-64 lg:w-72 bg-tv-surface/90 border-r border-tv-border flex flex-col shrink-0">
+        <div className="p-2.5 sm:p-4 border-b border-tv-border flex items-center justify-between">
+          <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
+            <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" />
             <span>Categorias TV</span>
           </div>
-          <span className="text-xs text-slate-400 bg-tv-card px-2 py-0.5 rounded-full border border-tv-border">
+          <span className="text-[10px] sm:text-xs text-slate-400 bg-tv-card px-2 py-0.5 rounded-full border border-tv-border">
             {liveChannels.length} canais
           </span>
         </div>
 
         {/* Categories List (Scrollable horizontally on mobile, vertically on desktop) */}
-        <div className="flex-1 overflow-x-auto md:overflow-y-auto p-2 flex md:flex-col gap-1.5 scrollbar-thin">
+        <div className="flex-1 overflow-x-auto sm:overflow-y-auto p-1.5 sm:p-2 flex sm:flex-col gap-1 sm:gap-1.5 scrollbar-thin">
           <button
             data-nav="true"
             onClick={() => setSelectedLiveCategoryId('all')}
-            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-semibold flex items-center justify-between transition-all outline-none whitespace-nowrap md:whitespace-normal ${
+            className={`w-full text-left px-2.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-between transition-all outline-none whitespace-nowrap sm:whitespace-normal ${
               selectedLiveCategoryId === 'all'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-bold'
                 : 'text-slate-300 hover:text-white hover:bg-tv-card focus:bg-tv-card focus:ring-2 focus:ring-blue-400'
             }`}
           >
             <span>Todos os Canais</span>
-            <span className="text-[11px] opacity-70 ml-2 hidden md:inline">({liveChannels.length})</span>
+            <span className="text-[11px] opacity-70 ml-2 hidden sm:inline">({liveChannels.length})</span>
           </button>
 
           {/* Pasta de Favoritos de TV */}

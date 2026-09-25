@@ -72,7 +72,7 @@ const MainLayout: React.FC = () => {
 
   return (
     <div
-      className={`h-screen w-screen flex flex-col bg-tv-bg text-slate-100 overflow-hidden ${
+      className={`fixed inset-0 w-full h-full flex flex-col bg-tv-bg text-slate-100 overflow-hidden select-none ${
         settings.tvMode ? 'text-lg tv-mode-active' : ''
       }`}
     >
@@ -89,7 +89,7 @@ const MainLayout: React.FC = () => {
       </div>
 
       {/* Smart TV Remote Control Helper Footer */}
-      <div className="h-7 bg-tv-surface/80 border-t border-tv-border/50 px-3 md:px-4 flex items-center justify-between text-[11px] text-slate-400 select-none shrink-0">
+      <div className="h-6 sm:h-7 bg-tv-surface/80 border-t border-tv-border/50 px-2 sm:px-4 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 select-none shrink-0">
         <div className="flex items-center gap-3 sm:gap-4 overflow-hidden text-ellipsis whitespace-nowrap">
           <span>
             <strong className="text-slate-200">D-Pad:</strong> ◀ ▲ ▼ ▶
