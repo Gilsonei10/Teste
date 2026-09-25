@@ -12,6 +12,7 @@ import {
 import { StorageService } from '../services/storageService';
 import { XtreamService } from '../services/xtreamService';
 import { parseM3U } from '../services/m3uParser';
+import { isWebOSEnvironment } from '../utils/env';
 import {
   DEMO_LIVE_CATEGORIES,
   DEMO_LIVE_CHANNELS,
@@ -286,23 +287,23 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Para arquivos M3U normais/estáticos (ou caso a API Xtream não responda), baixar e processar diretamente
       try {
         setLoadingMessage('Baixando lista M3U...');
-        let fetchUrl = cleanUrl;
-        if (settings.useCorsProxy && settings.corsProxyUrl) {
-          fetchUrl = `${settings.corsProxyUrl}${encodeURIComponent(cleanUrl)}`;
-        }
+        let res: Response;
+        const shouldUseProxy = settings.useCorsProxy && settings.corsProxyUrl && !isWebOSEnvironment();
 
-        let res = await fetch(fetchUrl);
-
-        // Fallback to direct fetch if proxy fails
-        if (!res.ok && settings.useCorsProxy) {
+        if (shouldUseProxy) {
           try {
-            const directRes = await fetch(cleanUrl);
-            if (directRes.ok) {
-              res = directRes;
+            const proxyUrl = `${settings.corsProxyUrl}${encodeURIComponent(cleanUrl)}`;
+            res = await fetch(proxyUrl);
+            if (!res.ok) {
+              console.warn(`[M3U] Proxy falhou com status ${res.status}. Tentando requisição direta...`);
+              res = await fetch(cleanUrl);
             }
-          } catch {
-            // keep original response
+          } catch (proxyErr) {
+            console.warn('[M3U] Erro de rede no proxy. Tentando requisição direta...', proxyErr);
+            res = await fetch(cleanUrl);
           }
+        } else {
+          res = await fetch(cleanUrl);
         }
 
         if (!res.ok) {
@@ -363,11 +364,18 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (active.type === 'm3u_url' && active.url) {
       try {
-        let fetchUrl = active.url;
-        if (settings.useCorsProxy && settings.corsProxyUrl) {
-          fetchUrl = `${settings.corsProxyUrl}${encodeURIComponent(active.url)}`;
+        let res: Response;
+        const shouldUseProxy = settings.useCorsProxy && settings.corsProxyUrl && !isWebOSEnvironment();
+        if (shouldUseProxy) {
+          try {
+            res = await fetch(`${settings.corsProxyUrl}${encodeURIComponent(active.url)}`);
+            if (!res.ok) res = await fetch(active.url);
+          } catch {
+            res = await fetch(active.url);
+          }
+        } else {
+          res = await fetch(active.url);
         }
-        const res = await fetch(fetchUrl);
         if (res.ok) {
           const text = await res.text();
           const parsed = parseM3U(text);

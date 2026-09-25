@@ -1,7 +1,7 @@
 import React from 'react';
 import { Category } from '../../types/iptv';
 import { SortOption, cleanCategoryName } from '../../utils/mediaUtils';
-import { Filter, ArrowUpDown, LayoutGrid, Rows3, Search, X } from 'lucide-react';
+import { Filter, ArrowUpDown, LayoutGrid, Rows3, Search, X, Star } from 'lucide-react';
 import { useIptv } from '../../context/IptvContext';
 
 interface CatalogControlsProps {
@@ -15,6 +15,7 @@ interface CatalogControlsProps {
   viewMode: 'showcase' | 'grid';
   onViewModeChange: (mode: 'showcase' | 'grid') => void;
   themeColor: 'blue' | 'purple';
+  favoritesCount?: number;
 }
 
 export const CatalogControls: React.FC<CatalogControlsProps> = ({
@@ -28,6 +29,7 @@ export const CatalogControls: React.FC<CatalogControlsProps> = ({
   viewMode,
   onViewModeChange,
   themeColor,
+  favoritesCount,
 }) => {
   const { searchQuery, setSearchQuery } = useIptv();
 
@@ -135,6 +137,36 @@ export const CatalogControls: React.FC<CatalogControlsProps> = ({
         >
           Todas ({totalItemsCount})
         </button>
+
+        {typeof favoritesCount === 'number' && (
+          <button
+            data-nav="true"
+            onClick={() => onSelectCategory('favorites')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all outline-none ${
+              selectedCategoryId === 'favorites'
+                ? 'bg-yellow-500 text-black shadow-md shadow-yellow-500/30 font-bold'
+                : 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300'
+            }`}
+          >
+            <Star
+              className={`w-3.5 h-3.5 ${
+                selectedCategoryId === 'favorites'
+                  ? 'fill-black text-black'
+                  : 'fill-yellow-400 text-yellow-400'
+              }`}
+            />
+            <span>Favoritos</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
+                selectedCategoryId === 'favorites'
+                  ? 'bg-black/20 text-black'
+                  : 'bg-yellow-400/20 text-yellow-300'
+              }`}
+            >
+              {favoritesCount}
+            </span>
+          </button>
+        )}
 
         {categories.map(cat => {
           const isSelected = selectedCategoryId === cat.id || selectedCategoryId === cat.name;

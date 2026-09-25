@@ -57,6 +57,15 @@ const MainLayout: React.FC = () => {
         setIsSettingsModalOpen(false);
       } else if (activeSection !== 'home') {
         setActiveSection('home');
+      } else {
+        // webOS Smart TV back-to-exit compliance
+        if (typeof window !== 'undefined') {
+          if ((window as any).webOS && typeof (window as any).webOS.platformBack === 'function') {
+            (window as any).webOS.platformBack();
+          } else {
+            window.close();
+          }
+        }
       }
     },
   });
@@ -96,7 +105,7 @@ const MainLayout: React.FC = () => {
         <div className="flex items-center gap-3 sm:gap-4 shrink-0">
           <div className="hidden lg:flex items-center gap-2.5 text-[10px]">
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Conexão
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Salvar em Favoritos
             </span>
             <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Ao Vivo

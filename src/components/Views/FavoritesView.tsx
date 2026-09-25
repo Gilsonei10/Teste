@@ -94,8 +94,16 @@ export const FavoritesView: React.FC = () => {
                 {favChannels.map(channel => (
                   <div
                     key={channel.id}
+                    data-nav="true"
+                    data-fav-card="true"
+                    data-fav-type="live"
+                    data-fav-id={channel.id}
+                    tabIndex={0}
                     onClick={() => playLiveChannel(channel)}
-                    className="p-3 bg-tv-surface hover:bg-tv-card border border-tv-border rounded-xl flex items-center justify-between gap-3 cursor-pointer group transition-all"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') playLiveChannel(channel);
+                    }}
+                    className="p-3 bg-tv-surface hover:bg-tv-card focus:bg-tv-card border border-tv-border focus:ring-2 focus:ring-blue-500 rounded-xl flex items-center justify-between gap-3 cursor-pointer group transition-all outline-none"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 bg-tv-bg rounded-lg p-1 flex items-center justify-center shrink-0">
@@ -114,6 +122,7 @@ export const FavoritesView: React.FC = () => {
                     </div>
 
                     <button
+                      data-fav-btn="true"
                       onClick={e => {
                         e.stopPropagation();
                         toggleFavorite('live', channel.id);
@@ -139,14 +148,23 @@ export const FavoritesView: React.FC = () => {
                 {favMovies.map(movie => (
                   <div
                     key={movie.id}
+                    data-nav="true"
+                    data-fav-card="true"
+                    data-fav-type="movies"
+                    data-fav-id={movie.id}
+                    tabIndex={0}
                     onClick={() => playMovie(movie)}
-                    className="group bg-tv-surface border border-tv-border rounded-2xl overflow-hidden cursor-pointer shadow-lg transition-all"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') playMovie(movie);
+                    }}
+                    className="group bg-tv-surface hover:bg-tv-card focus:bg-tv-card border border-tv-border focus:ring-2 focus:ring-blue-500 rounded-2xl overflow-hidden cursor-pointer shadow-lg transition-all outline-none"
                   >
                     <div className="relative aspect-[2/3] w-full bg-tv-card">
                       {movie.poster && (
                         <img src={movie.poster} alt={movie.name} className="w-full h-full object-cover" />
                       )}
                       <button
+                        data-fav-btn="true"
                         onClick={e => {
                           e.stopPropagation();
                           toggleFavorite('movies', movie.id);
@@ -179,14 +197,23 @@ export const FavoritesView: React.FC = () => {
                 {favSeries.map(series => (
                   <div
                     key={series.id}
+                    data-nav="true"
+                    data-fav-card="true"
+                    data-fav-type="series"
+                    data-fav-id={series.id}
+                    tabIndex={0}
                     onClick={() => setSelectedSeriesForDetails(series)}
-                    className="group bg-tv-surface border border-tv-border rounded-2xl overflow-hidden cursor-pointer shadow-lg transition-all"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') setSelectedSeriesForDetails(series);
+                    }}
+                    className="group bg-tv-surface hover:bg-tv-card focus:bg-tv-card border border-tv-border focus:ring-2 focus:ring-purple-500 rounded-2xl overflow-hidden cursor-pointer shadow-lg transition-all outline-none"
                   >
                     <div className="relative aspect-[2/3] w-full bg-tv-card">
                       {series.poster && (
                         <img src={series.poster} alt={series.name} className="w-full h-full object-cover" />
                       )}
                       <button
+                        data-fav-btn="true"
                         onClick={e => {
                           e.stopPropagation();
                           toggleFavorite('series', series.id);

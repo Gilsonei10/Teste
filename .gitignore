@@ -4,4 +4,5 @@ release-webos
 .env
 .env.local
 *.log
+*.tmp
 test_stream.js

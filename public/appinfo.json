@@ -1,6 +1,6 @@
 {
   "id": "com.antigravity.webiptv",
-  "version": "1.0.0",
+  "version": "0.0.9",
   "vendor": "Antigravity",
   "type": "web",
   "main": "index.html",

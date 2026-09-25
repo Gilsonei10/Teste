@@ -142,9 +142,16 @@ export const HomeView: React.FC = () => {
                 <span className="text-[9px] sm:text-xs text-slate-400 uppercase tracking-wider font-semibold block">
                   Disponíveis
                 </span>
-                <span className="text-xs sm:text-lg md:text-xl font-extrabold text-blue-400">
-                  {liveChannels.length} <span className="hidden xs:inline font-normal text-[10px] sm:text-xs text-blue-300/80">canais</span>
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-lg md:text-xl font-extrabold text-blue-400">
+                    {liveChannels.length} <span className="hidden xs:inline font-normal text-[10px] sm:text-xs text-blue-300/80">canais</span>
+                  </span>
+                  {(favorites.live?.length || 0) > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex items-center gap-0.5" title="Canais favoritos">
+                      ⭐ {favorites.live.length}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-blue-600/20 border border-blue-500/30 hidden xs:flex items-center justify-center text-blue-300 group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
                 <ChevronRight className="w-3.5 h-3.5 sm:w-5 sm:h-5 group-hover:translate-x-0.5 transition-transform" />
@@ -184,9 +191,16 @@ export const HomeView: React.FC = () => {
                 <span className="text-[9px] sm:text-xs text-slate-400 uppercase tracking-wider font-semibold block">
                   Disponíveis
                 </span>
-                <span className="text-xs sm:text-lg md:text-xl font-extrabold text-purple-400">
-                  {movies.length} <span className="hidden xs:inline font-normal text-[10px] sm:text-xs text-purple-300/80">títulos</span>
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-lg md:text-xl font-extrabold text-purple-400">
+                    {movies.length} <span className="hidden xs:inline font-normal text-[10px] sm:text-xs text-purple-300/80">títulos</span>
+                  </span>
+                  {(favorites.movies?.length || 0) > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex items-center gap-0.5" title="Filmes favoritos">
+                      ⭐ {favorites.movies.length}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-purple-600/20 border border-purple-500/30 hidden xs:flex items-center justify-center text-purple-300 group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0">
                 <ChevronRight className="w-3.5 h-3.5 sm:w-5 sm:h-5 group-hover:translate-x-0.5 transition-transform" />
@@ -226,9 +240,16 @@ export const HomeView: React.FC = () => {
                 <span className="text-[9px] sm:text-xs text-slate-400 uppercase tracking-wider font-semibold block">
                   Disponíveis
                 </span>
-                <span className="text-xs sm:text-lg md:text-xl font-extrabold text-emerald-400">
-                  {seriesList.length} <span className="hidden xs:inline font-normal text-[10px] sm:text-xs text-emerald-300/80">séries</span>
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-lg md:text-xl font-extrabold text-emerald-400">
+                    {seriesList.length} <span className="hidden xs:inline font-normal text-[10px] sm:text-xs text-emerald-300/80">séries</span>
+                  </span>
+                  {(favorites.series?.length || 0) > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex items-center gap-0.5" title="Séries favoritas">
+                      ⭐ {favorites.series.length}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-emerald-600/20 border border-emerald-500/30 hidden xs:flex items-center justify-center text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
                 <ChevronRight className="w-3.5 h-3.5 sm:w-5 sm:h-5 group-hover:translate-x-0.5 transition-transform" />

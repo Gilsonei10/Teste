@@ -1,4 +1,5 @@
 import { AppSettings, SavedPlaylist } from '../types/iptv';
+import { isWebOSEnvironment, isTvOrNativeEnvironment } from '../utils/env';
 
 const STORAGE_KEYS = {
   PLAYLISTS: 'iptv_saved_playlists',
@@ -11,8 +12,8 @@ const STORAGE_KEYS = {
 
 export const defaultSettings: AppSettings = {
   corsProxyUrl: '/proxy?url=',
-  useCorsProxy: true,
-  tvMode: false,
+  useCorsProxy: !isWebOSEnvironment(),
+  tvMode: isTvOrNativeEnvironment(),
   bufferLengthSeconds: 30,
   aspectRatio: 'contain',
   autoPlayNextEpisode: true,
@@ -22,15 +23,19 @@ export const StorageService = {
   getSettings(): AppSettings {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (!saved) return defaultSettings;
+      if (!saved) return { ...defaultSettings };
       const parsed = JSON.parse(saved);
       if (parsed.corsProxyUrl && parsed.corsProxyUrl.includes('corsproxy.io')) {
         parsed.corsProxyUrl = '/proxy?url=';
-        parsed.useCorsProxy = true;
+      }
+      // No webOS / TV nativo / file://, desabilitar proxy CORS por padrão já que o app tem acesso de rede irrestrito
+      if (isWebOSEnvironment() && (parsed.corsProxyUrl === '/proxy?url=' || !parsed.corsProxyUrl)) {
+        parsed.useCorsProxy = false;
+        parsed.tvMode = true;
       }
       return { ...defaultSettings, ...parsed };
     } catch {
-      return defaultSettings;
+      return { ...defaultSettings };
     }
   },
 

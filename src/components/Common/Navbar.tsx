@@ -1,13 +1,12 @@
 import React from 'react';
 import { useIptv, MainSection } from '../../context/IptvContext';
-import { Home, Tv, Film, Clapperboard, Star, Settings, Server, Maximize2, Minimize2 } from 'lucide-react';
+import { Home, Tv, Film, Clapperboard, Settings, Server, Maximize2, Minimize2 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const {
     activeSection,
     setActiveSection,
     setIsConnectModalOpen,
-    setIsTvPairingModalOpen,
     setIsSettingsModalOpen,
     activePlaylist,
   } = useIptv();
@@ -29,7 +28,6 @@ export const Navbar: React.FC = () => {
     { id: 'live', label: 'TV Ao Vivo', icon: <Tv className="w-5 h-5" /> },
     { id: 'movies', label: 'Filmes', icon: <Film className="w-5 h-5" /> },
     { id: 'series', label: 'Séries', icon: <Clapperboard className="w-5 h-5" /> },
-    { id: 'favorites', label: 'Favoritos', icon: <Star className="w-5 h-5" /> },
   ];
 
   return (
@@ -91,16 +89,6 @@ export const Navbar: React.FC = () => {
           </span>
         </button>
 
-        {/* Smart TV Pairing Quick Button */}
-        <button
-          data-nav="true"
-          onClick={() => setIsTvPairingModalOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 md:py-2 bg-blue-600/15 hover:bg-blue-600/25 border border-blue-500/30 rounded-xl text-xs md:text-sm text-blue-300 hover:text-blue-200 transition-all focus:ring-2 focus:ring-blue-400 cursor-pointer"
-          title="Conectar TV por Código"
-        >
-          <Tv className="w-4 h-4 text-blue-400" />
-          <span className="hidden md:inline font-semibold">Código TV</span>
-        </button>
 
         {/* Settings button */}
         <button

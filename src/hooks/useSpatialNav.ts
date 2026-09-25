@@ -8,7 +8,20 @@ interface SpatialNavOptions {
 }
 
 export function useSpatialNav({ onBack, onEnter, enabled = true }: SpatialNavOptions = {}) {
-  const { setActiveSection, setIsConnectModalOpen, setIsSettingsModalOpen } = useIptv();
+  const {
+    setActiveSection,
+    activeSection,
+    selectedMovieForDetails,
+    selectedSeriesForDetails,
+    currentPlaying,
+    toggleFavorite,
+    selectedLiveCategoryId,
+    setSelectedLiveCategoryId,
+    selectedMovieCategoryId,
+    setSelectedMovieCategoryId,
+    selectedSeriesCategoryId,
+    setSelectedSeriesCategoryId,
+  } = useIptv();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -41,10 +54,64 @@ export function useSpatialNav({ onBack, onEnter, enabled = true }: SpatialNavOpt
       }
 
       // 2. Color Keys on Smart TV Remotes
-      // RED: Open Connect Modal (403 / 'ColorF0Red')
+      // RED: Salvar em Favoritos / Toggle Favorite (403 / 'ColorF0Red')
       if (keyCode === 403 || keyName === 'ColorF0Red') {
         e.preventDefault();
-        setIsConnectModalOpen(true);
+
+        // 1. Se modal de detalhes de filme estiver aberto
+        if (selectedMovieForDetails) {
+          toggleFavorite('movies', selectedMovieForDetails.id);
+          return;
+        }
+
+        // 2. Se modal de detalhes de série estiver aberto
+        if (selectedSeriesForDetails) {
+          toggleFavorite('series', selectedSeriesForDetails.id);
+          return;
+        }
+
+        // 3. Se o player estiver reproduzindo
+        if (currentPlaying) {
+          if (currentPlaying.type === 'live') {
+            toggleFavorite('live', currentPlaying.id);
+          } else if (currentPlaying.type === 'movie') {
+            toggleFavorite('movies', currentPlaying.id);
+          } else if (currentPlaying.type === 'episode') {
+            const sId = (currentPlaying as any).seriesId;
+            if (sId) toggleFavorite('series', sId);
+          }
+          return;
+        }
+
+        // 4. Se algum elemento/card estiver focado pelo controle D-Pad
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl) {
+          const cardEl = (activeEl.closest('[data-fav-card="true"]') as HTMLElement | null) || activeEl;
+          const favBtn = cardEl.querySelector<HTMLElement>('[data-fav-btn="true"], button[title*="Favorit"]');
+          if (favBtn) {
+            favBtn.click();
+            return;
+          }
+
+          const favType = cardEl.getAttribute('data-fav-type') as 'live' | 'movies' | 'series' | null;
+          const favId = cardEl.getAttribute('data-fav-id');
+          if (favType && favId) {
+            toggleFavorite(favType, favId);
+            return;
+          }
+        }
+
+        // 5. Fallback: Alternar pasta de Favoritos na tela atual
+        if (activeSection === 'live') {
+          setSelectedLiveCategoryId(selectedLiveCategoryId === 'favorites' ? 'all' : 'favorites');
+        } else if (activeSection === 'movies') {
+          setSelectedMovieCategoryId(selectedMovieCategoryId === 'favorites' ? 'all' : 'favorites');
+        } else if (activeSection === 'series') {
+          setSelectedSeriesCategoryId(selectedSeriesCategoryId === 'favorites' ? 'all' : 'favorites');
+        } else {
+          setActiveSection('live');
+          setSelectedLiveCategoryId('favorites');
+        }
         return;
       }
       // GREEN: Switch to Live TV (404 / 'ColorF1Green')
@@ -172,7 +239,23 @@ export function useSpatialNav({ onBack, onEnter, enabled = true }: SpatialNavOpt
         }
       }
     },
-    [enabled, onBack, onEnter, setActiveSection, setIsConnectModalOpen, setIsSettingsModalOpen]
+    [
+      enabled,
+      onBack,
+      onEnter,
+      setActiveSection,
+      activeSection,
+      selectedMovieForDetails,
+      selectedSeriesForDetails,
+      currentPlaying,
+      toggleFavorite,
+      selectedLiveCategoryId,
+      setSelectedLiveCategoryId,
+      selectedMovieCategoryId,
+      setSelectedMovieCategoryId,
+      selectedSeriesCategoryId,
+      setSelectedSeriesCategoryId,
+    ]
   );
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {

@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 import { useIptv } from '../../context/IptvContext';
 import { StorageService } from '../../services/storageService';
+import { isWebOSEnvironment } from '../../utils/env';
 import {
   Play,
   Pause,
@@ -20,6 +21,8 @@ import {
   AlertTriangle,
   RefreshCw,
   Tv,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 export const VideoPlayer: React.FC = () => {
@@ -53,6 +56,7 @@ export const VideoPlayer: React.FC = () => {
   const [isBuffering, setIsBuffering] = useState<boolean>(true);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [streamFormat, setStreamFormat] = useState<'hls' | 'ts' | 'native'>('ts');
+  const [isCopied, setIsCopied] = useState<boolean>(false);
 
   const aspectRatios: ('contain' | 'cover' | 'fill' | '16:9' | '4:3')[] = [
     'contain',
@@ -189,7 +193,13 @@ export const VideoPlayer: React.FC = () => {
 
       // Determine target URL with proxy
       let targetUrl = rawUrl;
-      if (settings.useCorsProxy && settings.corsProxyUrl && !targetUrl.startsWith('/proxy?url=')) {
+      const shouldUseProxy =
+        settings.useCorsProxy &&
+        settings.corsProxyUrl &&
+        !isWebOSEnvironment() &&
+        !targetUrl.startsWith('/proxy?url=');
+
+      if (shouldUseProxy) {
         targetUrl = `${settings.corsProxyUrl}${encodeURIComponent(rawUrl)}`;
       }
 
@@ -402,12 +412,17 @@ export const VideoPlayer: React.FC = () => {
         }
 
         const lowerUrl = (currentPlaying.streamUrl || '').toLowerCase();
-        if (streamFormat === 'native' && lowerUrl.includes('.m3u8') && Hls.isSupported()) {
-          console.info('Vídeo nativo falhou para episódio HLS. Tentando HLS.js...');
+        if (streamFormat === 'native' && Hls.isSupported() && (lowerUrl.includes('.m3u8') || !lowerUrl.endsWith('.mp4'))) {
+          console.info('Vídeo nativo falhou para episódio. Tentando Engine HLS...');
           startPlayback(currentPlaying.streamUrl, 'hls');
           return;
         }
-        setPlaybackError('Episódio temporariamente indisponível no servidor do provedor IPTV (Fonte offline ou link expirado).');
+        if (streamFormat === 'hls' && mpegts.isSupported()) {
+          console.info('Engine HLS falhou para episódio. Tentando Engine MPEG-TS...');
+          startPlayback(currentPlaying.streamUrl, 'ts');
+          return;
+        }
+        setPlaybackError('Episódio temporariamente indisponível no servidor do provedor IPTV (Fonte offline no servidor de origem ou link com erro 404).');
         return;
       }
       setPlaybackError('Falha ao reproduzir o stream.');
@@ -664,6 +679,14 @@ export const VideoPlayer: React.FC = () => {
                 </button>
 
                 <button
+                  onClick={() => startPlayback(currentPlaying.streamUrl, 'ts')}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg"
+                >
+                  <Tv className="w-4 h-4" />
+                  Engine MPEG-TS
+                </button>
+
+                <button
                   onClick={async () => {
                     if (currentPlaying) {
                       setIsBuffering(true);
@@ -678,6 +701,21 @@ export const VideoPlayer: React.FC = () => {
                 >
                   <RefreshCw className="w-4 h-4" />
                   Recarregar / Atualizar Link
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (currentPlaying?.streamUrl) {
+                      navigator.clipboard.writeText(currentPlaying.streamUrl);
+                      setIsCopied(true);
+                      setTimeout(() => setIsCopied(false), 2500);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-medium transition-all"
+                  title="Copiar link do stream"
+                >
+                  {isCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  {isCopied ? 'Link Copiado!' : 'Copiar Link'}
                 </button>
               </>
             )}

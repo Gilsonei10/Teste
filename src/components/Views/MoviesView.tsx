@@ -25,6 +25,7 @@ export const MoviesView: React.FC = () => {
     toggleFavorite,
     isFavorite,
     setIsConnectModalOpen,
+    favorites,
   } = useIptv();
 
   const [sortBy, setSortBy] = useState<SortOption>('default');
@@ -40,9 +41,11 @@ export const MoviesView: React.FC = () => {
   const filteredMovies = useMemo(() => {
     const list = movies.filter(movie => {
       const matchesCategory =
-        selectedMovieCategoryId === 'all' ||
-        movie.categoryId === selectedMovieCategoryId ||
-        movie.category === selectedMovieCategoryId;
+        selectedMovieCategoryId === 'favorites'
+          ? isFavorite('movies', movie.id)
+          : selectedMovieCategoryId === 'all' ||
+            movie.categoryId === selectedMovieCategoryId ||
+            movie.category === selectedMovieCategoryId;
 
       const matchesSearch =
         !searchQuery ||
@@ -54,7 +57,7 @@ export const MoviesView: React.FC = () => {
     });
 
     return sortMediaItems(list, sortBy);
-  }, [movies, selectedMovieCategoryId, searchQuery, sortBy]);
+  }, [movies, selectedMovieCategoryId, searchQuery, sortBy, isFavorite, favorites.movies]);
 
   // Seções por categoria para o modo Vitrine
   const showcaseSections = useMemo(() => {
@@ -165,15 +168,24 @@ export const MoviesView: React.FC = () => {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           themeColor="blue"
+          favoritesCount={favorites.movies?.length || 0}
         />
 
         {/* Catalog Body */}
         {filteredMovies.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-tv-card/30 rounded-2xl border border-tv-border">
-            <Film className="w-12 h-12 text-slate-600 mb-3" />
-            <h3 className="text-base font-bold text-white mb-1">Nenhum filme encontrado</h3>
+            {selectedMovieCategoryId === 'favorites' ? (
+              <Star className="w-12 h-12 text-yellow-500/60 mb-3 fill-yellow-500/20" />
+            ) : (
+              <Film className="w-12 h-12 text-slate-600 mb-3" />
+            )}
+            <h3 className="text-base font-bold text-white mb-1">
+              {selectedMovieCategoryId === 'favorites' ? 'Nenhum filme favoritado' : 'Nenhum filme encontrado'}
+            </h3>
             <p className="text-xs text-slate-400 max-w-sm mb-4">
-              {movies.length === 0
+              {selectedMovieCategoryId === 'favorites'
+                ? 'Você ainda não favoritou nenhum filme. Clique na estrela ⭐ em qualquer filme para acessá-lo rapidamente por aqui!'
+                : movies.length === 0
                 ? 'Nenhum filme carregado nesta lista IPTV.'
                 : 'Nenhum filme corresponde aos filtros selecionados.'}
             </p>
@@ -223,6 +235,9 @@ export const MoviesView: React.FC = () => {
                   <div
                     key={movie.id}
                     data-nav="true"
+                    data-fav-card="true"
+                    data-fav-type="movies"
+                    data-fav-id={movie.id}
                     tabIndex={0}
                     onClick={() => setSelectedMovieForDetails(movie)}
                     onKeyDown={e => {
@@ -253,6 +268,7 @@ export const MoviesView: React.FC = () => {
 
                       {/* Favorite Button */}
                       <button
+                        data-fav-btn="true"
                         onClick={e => {
                           e.stopPropagation();
                           toggleFavorite('movies', movie.id);

@@ -103,6 +103,9 @@ export const MediaCarouselRow: React.FC<MediaCarouselRowProps> = ({
             <div
               key={item.id}
               data-nav="true"
+              data-fav-card="true"
+              data-fav-type={type === 'series' ? 'series' : 'movies'}
+              data-fav-id={item.id}
               tabIndex={0}
               onClick={() => onSelectItem(item)}
               onKeyDown={e => {
@@ -138,6 +141,7 @@ export const MediaCarouselRow: React.FC<MediaCarouselRowProps> = ({
 
                 {/* Favorite Star Button */}
                 <button
+                  data-fav-btn="true"
                   onClick={e => {
                     e.stopPropagation();
                     toggleFavorite(type === 'series' ? 'series' : 'movies', item.id);

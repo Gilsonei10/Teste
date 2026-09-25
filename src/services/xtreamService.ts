@@ -1,4 +1,5 @@
 import { Category, LiveChannel, MovieItem, SeriesItem, SeasonItem, EpisodeItem, XtreamCredentials, AppSettings } from '../types/iptv';
+import { isWebOSEnvironment } from '../utils/env';
 
 export interface XtreamAuthResponse {
   user_info: {
@@ -37,7 +38,7 @@ export class XtreamService {
     this.settings = settings;
   }
 
-  private buildApiUrl(action?: string, params?: Record<string, string>): string {
+  private buildRawApiUrl(action?: string, params?: Record<string, string>): string {
     let url = `${this.serverUrl}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}`;
     if (action) {
       url += `&action=${action}`;
@@ -47,15 +48,34 @@ export class XtreamService {
         url += `&${encodeURIComponent(key)}=${encodeURIComponent(val)}`;
       });
     }
-    if (this.settings.useCorsProxy && this.settings.corsProxyUrl) {
-      return `${this.settings.corsProxyUrl}${encodeURIComponent(url)}`;
-    }
     return url;
   }
 
+  private async fetchApi(action?: string, params?: Record<string, string>): Promise<Response> {
+    const rawUrl = this.buildRawApiUrl(action, params);
+    const shouldUseProxy =
+      this.settings.useCorsProxy &&
+      this.settings.corsProxyUrl &&
+      !isWebOSEnvironment();
+
+    if (shouldUseProxy) {
+      const proxyUrl = `${this.settings.corsProxyUrl}${encodeURIComponent(rawUrl)}`;
+      try {
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          return res;
+        }
+        console.warn(`[Xtream] Proxy falhou com status ${res.status}. Tentando requisição direta...`);
+      } catch (proxyErr) {
+        console.warn('[Xtream] Erro no proxy ao acessar API. Tentando requisição direta...', proxyErr);
+      }
+    }
+
+    return await fetch(rawUrl);
+  }
+
   async authenticate(): Promise<XtreamAuthResponse> {
-    const url = this.buildApiUrl();
-    const res = await fetch(url);
+    const res = await this.fetchApi();
     if (!res.ok) {
       if (res.status === 500) {
         throw new Error('Servidor indisponível ou erro interno (500). Verifique suas credenciais ou tente novamente.');
@@ -77,8 +97,7 @@ export class XtreamService {
 
   async getLiveCategories(): Promise<Category[]> {
     try {
-      const url = this.buildApiUrl('get_live_categories');
-      const res = await fetch(url);
+      const res = await this.fetchApi('get_live_categories');
       const data = await res.json();
       if (!Array.isArray(data)) return [];
       return data.map((item: any) => ({
@@ -95,8 +114,7 @@ export class XtreamService {
   async getLiveStreams(categoryId?: string): Promise<LiveChannel[]> {
     try {
       const params = categoryId && categoryId !== 'all' ? { category_id: categoryId } : undefined;
-      const url = this.buildApiUrl('get_live_streams', params);
-      const res = await fetch(url);
+      const res = await this.fetchApi('get_live_streams', params);
       const data = await res.json();
       if (!Array.isArray(data)) return [];
 
@@ -123,8 +141,7 @@ export class XtreamService {
 
   async getMovieCategories(): Promise<Category[]> {
     try {
-      const url = this.buildApiUrl('get_vod_categories');
-      const res = await fetch(url);
+      const res = await this.fetchApi('get_vod_categories');
       const data = await res.json();
       if (!Array.isArray(data)) return [];
       return data.map((item: any) => ({
@@ -141,8 +158,7 @@ export class XtreamService {
   async getMovies(categoryId?: string): Promise<MovieItem[]> {
     try {
       const params = categoryId && categoryId !== 'all' ? { category_id: categoryId } : undefined;
-      const url = this.buildApiUrl('get_vod_streams', params);
-      const res = await fetch(url);
+      const res = await this.fetchApi('get_vod_streams', params);
       const data = await res.json();
       if (!Array.isArray(data)) return [];
 
@@ -171,8 +187,7 @@ export class XtreamService {
 
   async getSeriesCategories(): Promise<Category[]> {
     try {
-      const url = this.buildApiUrl('get_series_categories');
-      const res = await fetch(url);
+      const res = await this.fetchApi('get_series_categories');
       const data = await res.json();
       if (!Array.isArray(data)) return [];
       return data.map((item: any) => ({
@@ -189,8 +204,7 @@ export class XtreamService {
   async getSeries(categoryId?: string): Promise<SeriesItem[]> {
     try {
       const params = categoryId && categoryId !== 'all' ? { category_id: categoryId } : undefined;
-      const url = this.buildApiUrl('get_series', params);
-      const res = await fetch(url);
+      const res = await this.fetchApi('get_series', params);
       const data = await res.json();
       if (!Array.isArray(data)) return [];
 
@@ -218,8 +232,7 @@ export class XtreamService {
 
   async getSeriesDetails(seriesId: string | number): Promise<{ seasons: SeasonItem[]; info?: any }> {
     try {
-      const url = this.buildApiUrl('get_series_info', { series_id: String(seriesId) });
-      const res = await fetch(url);
+      const res = await this.fetchApi('get_series_info', { series_id: String(seriesId) });
       const data = await res.json();
 
       const seasonsMap: Map<number, SeasonItem> = new Map();

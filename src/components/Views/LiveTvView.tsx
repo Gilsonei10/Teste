@@ -15,15 +15,22 @@ export const LiveTvView: React.FC = () => {
     toggleFavorite,
     isFavorite,
     setIsConnectModalOpen,
+    favorites,
   } = useIptv();
+
+  const favChannelsCount = useMemo(() => {
+    return liveChannels.filter(ch => isFavorite('live', ch.id)).length;
+  }, [liveChannels, isFavorite, favorites.live]);
 
   // Filter channels by category and search query
   const filteredChannels = useMemo(() => {
     return liveChannels.filter(ch => {
       const matchesCategory =
-        selectedLiveCategoryId === 'all' ||
-        ch.categoryId === selectedLiveCategoryId ||
-        ch.category === selectedLiveCategoryId;
+        selectedLiveCategoryId === 'favorites'
+          ? isFavorite('live', ch.id)
+          : selectedLiveCategoryId === 'all' ||
+            ch.categoryId === selectedLiveCategoryId ||
+            ch.category === selectedLiveCategoryId;
 
       const matchesSearch =
         !searchQuery ||
@@ -32,7 +39,7 @@ export const LiveTvView: React.FC = () => {
 
       return matchesCategory && matchesSearch;
     });
-  }, [liveChannels, selectedLiveCategoryId, searchQuery]);
+  }, [liveChannels, selectedLiveCategoryId, searchQuery, isFavorite, favorites.live]);
 
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
@@ -63,6 +70,27 @@ export const LiveTvView: React.FC = () => {
             <span className="text-[11px] opacity-70 ml-2 hidden md:inline">({liveChannels.length})</span>
           </button>
 
+          {/* Pasta de Favoritos de TV */}
+          <button
+            data-nav="true"
+            onClick={() => setSelectedLiveCategoryId('favorites')}
+            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-semibold flex items-center justify-between transition-all outline-none whitespace-nowrap md:whitespace-normal ${
+              selectedLiveCategoryId === 'favorites'
+                ? 'bg-yellow-500 text-black shadow-md shadow-yellow-500/30 font-bold'
+                : 'text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 focus:bg-yellow-500/10 focus:ring-2 focus:ring-yellow-400'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Star className={`w-4 h-4 ${selectedLiveCategoryId === 'favorites' ? 'fill-black text-black' : 'fill-yellow-400 text-yellow-400'}`} />
+              <span>Canais Favoritos</span>
+            </div>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+              selectedLiveCategoryId === 'favorites' ? 'bg-black/20 text-black' : 'bg-yellow-500/20 text-yellow-400'
+            }`}>
+              {favChannelsCount}
+            </span>
+          </button>
+
           {liveCategories.map(cat => {
             const isSelected = selectedLiveCategoryId === cat.id || selectedLiveCategoryId === cat.name;
             return (
@@ -89,11 +117,17 @@ export const LiveTvView: React.FC = () => {
         <div className="p-3 sm:p-4 border-b border-tv-border flex flex-wrap items-center justify-between gap-3 bg-tv-surface/40 shrink-0">
           <div>
             <h2 className="text-sm sm:text-base md:text-lg font-bold text-white flex items-center gap-2">
-              <Tv className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-              <span>Grade de TV Ao Vivo</span>
+              {selectedLiveCategoryId === 'favorites' ? (
+                <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-yellow-400" />
+              ) : (
+                <Tv className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+              )}
+              <span>{selectedLiveCategoryId === 'favorites' ? 'Canais Favoritos' : 'Grade de TV Ao Vivo'}</span>
             </h2>
             <p className="text-[11px] sm:text-xs text-slate-400">
-              Mostrando {filteredChannels.length} canais disponíveis
+              {selectedLiveCategoryId === 'favorites'
+                ? `${filteredChannels.length} canais salvos nos seus favoritos`
+                : `Mostrando ${filteredChannels.length} canais disponíveis`}
             </p>
           </div>
 
@@ -124,10 +158,18 @@ export const LiveTvView: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
           {filteredChannels.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-tv-card/30 rounded-2xl border border-tv-border">
-              <Tv className="w-12 h-12 text-slate-600 mb-3" />
-              <h3 className="text-base font-bold text-white mb-1">Nenhum canal encontrado</h3>
+              {selectedLiveCategoryId === 'favorites' ? (
+                <Star className="w-12 h-12 text-yellow-500/60 mb-3 fill-yellow-500/20" />
+              ) : (
+                <Tv className="w-12 h-12 text-slate-600 mb-3" />
+              )}
+              <h3 className="text-base font-bold text-white mb-1">
+                {selectedLiveCategoryId === 'favorites' ? 'Nenhum canal favoritado' : 'Nenhum canal encontrado'}
+              </h3>
               <p className="text-xs text-slate-400 max-w-sm mb-4">
-                {liveChannels.length === 0
+                {selectedLiveCategoryId === 'favorites'
+                  ? 'Você ainda não adicionou canais aos favoritos. Clique no ícone de estrela ⭐ nos canais para acessá-los rapidamente por aqui!'
+                  : liveChannels.length === 0
                   ? 'Você ainda não conectou nenhuma lista de IPTV com canais ao vivo.'
                   : 'Nenhum canal corresponde aos filtros ou busca selecionada.'}
               </p>
@@ -148,6 +190,9 @@ export const LiveTvView: React.FC = () => {
                   <div
                     key={channel.id}
                     data-nav="true"
+                    data-fav-card="true"
+                    data-fav-type="live"
+                    data-fav-id={channel.id}
                     tabIndex={0}
                     onClick={() => playLiveChannel(channel)}
                     onKeyDown={e => {
@@ -174,6 +219,7 @@ export const LiveTvView: React.FC = () => {
 
                       {/* Favorite Button */}
                       <button
+                        data-fav-btn="true"
                         onClick={e => {
                           e.stopPropagation();
                           toggleFavorite('live', channel.id);

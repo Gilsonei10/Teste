@@ -24,6 +24,7 @@ export const SeriesView: React.FC = () => {
     toggleFavorite,
     isFavorite,
     setIsConnectModalOpen,
+    favorites,
   } = useIptv();
 
   const [sortBy, setSortBy] = useState<SortOption>('default');
@@ -43,9 +44,11 @@ export const SeriesView: React.FC = () => {
   const filteredSeries = useMemo(() => {
     const list = seriesList.filter(series => {
       const matchesCategory =
-        selectedSeriesCategoryId === 'all' ||
-        series.categoryId === selectedSeriesCategoryId ||
-        series.category === selectedSeriesCategoryId;
+        selectedSeriesCategoryId === 'favorites'
+          ? isFavorite('series', series.id)
+          : selectedSeriesCategoryId === 'all' ||
+            series.categoryId === selectedSeriesCategoryId ||
+            series.category === selectedSeriesCategoryId;
 
       const matchesSearch =
         !searchQuery ||
@@ -57,7 +60,7 @@ export const SeriesView: React.FC = () => {
     });
 
     return sortMediaItems(list, sortBy);
-  }, [seriesList, selectedSeriesCategoryId, searchQuery, sortBy]);
+  }, [seriesList, selectedSeriesCategoryId, searchQuery, sortBy, isFavorite, favorites.series]);
 
   // Seções por categoria para o modo Vitrine
   const showcaseSections = useMemo(() => {
@@ -153,15 +156,24 @@ export const SeriesView: React.FC = () => {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           themeColor="purple"
+          favoritesCount={favorites.series?.length || 0}
         />
 
         {/* Catalog Body */}
         {filteredSeries.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-tv-card/30 rounded-2xl border border-tv-border">
-            <Clapperboard className="w-12 h-12 text-slate-600 mb-3" />
-            <h3 className="text-base font-bold text-white mb-1">Nenhuma série encontrada</h3>
+            {selectedSeriesCategoryId === 'favorites' ? (
+              <Star className="w-12 h-12 text-yellow-500/60 mb-3 fill-yellow-500/20" />
+            ) : (
+              <Clapperboard className="w-12 h-12 text-slate-600 mb-3" />
+            )}
+            <h3 className="text-base font-bold text-white mb-1">
+              {selectedSeriesCategoryId === 'favorites' ? 'Nenhuma série favoritada' : 'Nenhuma série encontrada'}
+            </h3>
             <p className="text-xs text-slate-400 max-w-sm mb-4">
-              {seriesList.length === 0
+              {selectedSeriesCategoryId === 'favorites'
+                ? 'Você ainda não favoritou nenhuma série. Clique na estrela ⭐ em qualquer série para acessá-la rapidamente por aqui!'
+                : seriesList.length === 0
                 ? 'Nenhuma série carregada nesta lista IPTV.'
                 : 'Nenhuma série corresponde aos filtros selecionados.'}
             </p>
@@ -211,6 +223,9 @@ export const SeriesView: React.FC = () => {
                   <div
                     key={series.id}
                     data-nav="true"
+                    data-fav-card="true"
+                    data-fav-type="series"
+                    data-fav-id={series.id}
                     tabIndex={0}
                     onClick={() => handleSelectSeries(series)}
                     onKeyDown={e => {
@@ -241,6 +256,7 @@ export const SeriesView: React.FC = () => {
 
                       {/* Favorite Button */}
                       <button
+                        data-fav-btn="true"
                         onClick={e => {
                           e.stopPropagation();
                           toggleFavorite('series', series.id);

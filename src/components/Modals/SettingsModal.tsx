@@ -1,6 +1,7 @@
 import React from 'react';
 import { useIptv } from '../../context/IptvContext';
 import { Settings, X, ShieldCheck, Tv, Film, LogOut, Info } from 'lucide-react';
+import { isWebOSEnvironment } from '../../utils/env';
 
 export const SettingsModal: React.FC = () => {
   const {
@@ -45,7 +46,11 @@ export const SettingsModal: React.FC = () => {
                 <ShieldCheck className="w-5 h-5 text-blue-400" />
                 <div>
                   <span className="font-semibold text-sm text-white block">Proxy Reverso / CORS</span>
-                  <span className="text-xs text-slate-400">Resolve bloqueios de CORS em streams web</span>
+                  <span className="text-xs text-slate-400">
+                    {isWebOSEnvironment()
+                      ? 'Desnecessário no webOS (Acesso de rede direto habilitado)'
+                      : 'Resolve bloqueios de CORS em navegadores web'}
+                  </span>
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">

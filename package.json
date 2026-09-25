@@ -1,19 +1,19 @@
 {
   "name": "web-iptv-player",
   "private": true,
-  "version": "0.0.12",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "start": "node server.js",
     "preview": "vite preview",
-    "cap:sync": "npm run build && cap sync",
-    "cap:open": "cap open android",
+    "cap:sync": "npm run build && npx cap sync android",
+    "cap:open": "npx cap open android",
     "webos:package": "node scripts/package-webos.js",
-    "webos:devices": "ares-setup-device --list",
-    "webos:install": "ares-install release-webos/com.antigravity.webiptv_0.0.8_all.ipk",
-    "webos:launch": "ares-launch com.antigravity.webiptv"
+    "webos:devices": "npx ares-setup-device --list",
+    "webos:install": "npx ares-install release-webos/com.antigravity.webiptv_1.0.0_all.ipk",
+    "webos:launch": "npx ares-launch com.antigravity.webiptv"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
