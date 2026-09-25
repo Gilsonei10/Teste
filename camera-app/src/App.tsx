@@ -26,8 +26,11 @@ export const App: React.FC = () => {
     isPermissionGranted,
     isLoading,
     errorMessage,
+    isCapturingDual,
+    dualCaptureStatus,
     setLayoutMode,
     swapCameras,
+    captureSequentialDualFrames,
     initializeCameras,
   } = useDualCamera();
 
@@ -52,15 +55,16 @@ export const App: React.FC = () => {
     layoutMode,
     isSimultaneousSupported,
     primaryFacing,
+    captureSequentialDualFrames,
   });
 
   const latestMedia = capturedMediaList.length > 0 ? capturedMediaList[0] : null;
 
-  if (isLoading) {
+  if (isLoading && !isCapturingDual) {
     return (
       <main className="w-full h-screen bg-black flex flex-col items-center justify-center text-white">
         <div className="w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin mb-4" />
-        <p className="text-sm font-medium text-gray-300">Iniciando câmeras frontal e traseira...</p>
+        <p className="text-sm font-medium text-gray-300">Iniciando câmeras...</p>
       </main>
     );
   }
@@ -98,6 +102,8 @@ export const App: React.FC = () => {
           layoutMode={layoutMode}
           isSimultaneousSupported={isSimultaneousSupported}
           isFlashing={isFlashing}
+          isCapturingDual={isCapturingDual}
+          dualCaptureStatus={dualCaptureStatus}
           onSwap={swapCameras}
         />
       </div>

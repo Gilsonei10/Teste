@@ -8,6 +8,7 @@ interface UseMediaCaptureProps {
   layoutMode: LayoutMode;
   isSimultaneousSupported: boolean;
   primaryFacing: 'user' | 'environment';
+  captureSequentialDualFrames: (primaryVideo: HTMLVideoElement) => Promise<{ primaryCanvas: HTMLCanvasElement; secondaryCanvas: HTMLCanvasElement } | null>;
 }
 
 export function useMediaCapture({
@@ -17,6 +18,7 @@ export function useMediaCapture({
   layoutMode,
   isSimultaneousSupported,
   primaryFacing,
+  captureSequentialDualFrames,
 }: UseMediaCaptureProps) {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
@@ -45,31 +47,28 @@ export function useMediaCapture({
     };
   }, []);
 
-  // Draw video elements onto composite canvas
-  const drawCompositeFrame = useCallback(
-    (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+  // Generic composite drawer for either Video or Canvas elements
+  const drawCompositeElements = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      e1: CanvasImageSource,
+      e2?: CanvasImageSource | null
+    ) => {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
 
-      const v1 = primaryVideoRef.current;
-      const v2 = secondaryVideoRef.current;
-
-      const hasV1 = v1 && v1.readyState >= 2;
-      const hasV2 = v2 && v2.readyState >= 2 && isSimultaneousSupported;
-
       if (layoutMode === 'split-v') {
-        // Top half and Bottom half
         const halfHeight = height / 2;
-        if (hasV1) {
-          ctx.drawImage(v1, 0, 0, width, halfHeight);
+        ctx.drawImage(e1, 0, 0, width, halfHeight);
+
+        if (e2) {
+          ctx.drawImage(e2, 0, halfHeight, width, halfHeight);
+        } else {
+          ctx.drawImage(e1, 0, halfHeight, width, halfHeight);
         }
-        if (hasV2) {
-          ctx.drawImage(v2, 0, halfHeight, width, halfHeight);
-        } else if (hasV1 && !hasV2) {
-          // If only 1 video active, center it or duplicate with placeholder
-          ctx.drawImage(v1, 0, halfHeight, width, halfHeight);
-        }
-        // Divider line
+
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -77,17 +76,15 @@ export function useMediaCapture({
         ctx.lineTo(width, halfHeight);
         ctx.stroke();
       } else if (layoutMode === 'split-h') {
-        // Left half and Right half
         const halfWidth = width / 2;
-        if (hasV1) {
-          ctx.drawImage(v1, 0, 0, halfWidth, height);
+        ctx.drawImage(e1, 0, 0, halfWidth, height);
+
+        if (e2) {
+          ctx.drawImage(e2, halfWidth, 0, halfWidth, height);
+        } else {
+          ctx.drawImage(e1, halfWidth, 0, halfWidth, height);
         }
-        if (hasV2) {
-          ctx.drawImage(v2, halfWidth, 0, halfWidth, height);
-        } else if (hasV1 && !hasV2) {
-          ctx.drawImage(v1, halfWidth, 0, halfWidth, height);
-        }
-        // Divider line
+
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -95,13 +92,10 @@ export function useMediaCapture({
         ctx.lineTo(halfWidth, height);
         ctx.stroke();
       } else {
-        // Picture-in-Picture (PiP)
-        if (hasV1) {
-          ctx.drawImage(v1, 0, 0, width, height);
-        }
+        // PiP Mode
+        ctx.drawImage(e1, 0, 0, width, height);
 
-        if (hasV2) {
-          // Inset window at top-right
+        if (e2) {
           const insetW = width * 0.32;
           const insetH = height * 0.24;
           const insetX = width - insetW - 40;
@@ -109,26 +103,23 @@ export function useMediaCapture({
           const radius = 24;
 
           ctx.save();
-          // Rounded clip for PiP preview
           ctx.beginPath();
           ctx.roundRect(insetX, insetY, insetW, insetH, radius);
           ctx.clip();
 
-          // Mirror front camera in PiP if secondary is front
           const isSecondaryFront = primaryFacing === 'environment';
           if (isSecondaryFront) {
             ctx.save();
             ctx.translate(insetX + insetW, insetY);
             ctx.scale(-1, 1);
-            ctx.drawImage(v2, 0, 0, insetW, insetH);
+            ctx.drawImage(e2, 0, 0, insetW, insetH);
             ctx.restore();
           } else {
-            ctx.drawImage(v2, insetX, insetY, insetW, insetH);
+            ctx.drawImage(e2, insetX, insetY, insetW, insetH);
           }
 
           ctx.restore();
 
-          // Border for PiP window
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 6;
           ctx.beginPath();
@@ -137,7 +128,23 @@ export function useMediaCapture({
         }
       }
     },
-    [layoutMode, primaryFacing, isSimultaneousSupported, primaryVideoRef, secondaryVideoRef]
+    [layoutMode, primaryFacing]
+  );
+
+  // Real-time canvas drawing loop during video preview & recording
+  const drawCompositeFrame = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      const v1 = primaryVideoRef.current;
+      const v2 = secondaryVideoRef.current;
+
+      const hasV1 = v1 && v1.readyState >= 2;
+      const hasV2 = v2 && v2.readyState >= 2 && isSimultaneousSupported;
+
+      if (hasV1) {
+        drawCompositeElements(ctx, width, height, v1, hasV2 ? v2 : null);
+      }
+    },
+    [drawCompositeElements, isSimultaneousSupported, primaryVideoRef, secondaryVideoRef]
   );
 
   // Trigger visual shutter flash
@@ -148,7 +155,7 @@ export function useMediaCapture({
     }, 150);
   }, []);
 
-  // Take combined photo
+  // Take combined photo (supports simultaneous and sequential dual capture)
   const takePhoto = useCallback(async (): Promise<CapturedMedia | null> => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -156,8 +163,29 @@ export function useMediaCapture({
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    triggerFlash();
-    drawCompositeFrame(ctx, canvas.width, canvas.height);
+    if (isSimultaneousSupported) {
+      triggerFlash();
+      drawCompositeFrame(ctx, canvas.width, canvas.height);
+    } else {
+      const primaryVideo = primaryVideoRef.current;
+      if (!primaryVideo) return null;
+
+      // Smart Dual Capture: captures frame 1, switches to camera 2, captures frame 2, stitches both!
+      const dualFrames = await captureSequentialDualFrames(primaryVideo);
+      if (dualFrames) {
+        triggerFlash();
+        drawCompositeElements(
+          ctx,
+          canvas.width,
+          canvas.height,
+          dualFrames.primaryCanvas,
+          dualFrames.secondaryCanvas
+        );
+      } else {
+        triggerFlash();
+        drawCompositeFrame(ctx, canvas.width, canvas.height);
+      }
+    }
 
     return new Promise((resolve) => {
       canvas.toBlob(
@@ -184,7 +212,15 @@ export function useMediaCapture({
         0.95
       );
     });
-  }, [drawCompositeFrame, layoutMode, triggerFlash]);
+  }, [
+    captureSequentialDualFrames,
+    drawCompositeElements,
+    drawCompositeFrame,
+    isSimultaneousSupported,
+    layoutMode,
+    primaryVideoRef,
+    triggerFlash,
+  ]);
 
   // Start recording video
   const startRecording = useCallback(() => {
@@ -196,17 +232,14 @@ export function useMediaCapture({
 
     recordedChunksRef.current = [];
 
-    // Animation loop to keep drawing video feeds onto canvas during recording
     const renderLoop = () => {
       drawCompositeFrame(ctx, canvas.width, canvas.height);
       animFrameIdRef.current = requestAnimationFrame(renderLoop);
     };
     renderLoop();
 
-    // Capture 30fps canvas stream
     const canvasStream = canvas.captureStream(30);
 
-    // Combine audio tracks from microphone if available
     const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
     if (audioStream) {
       audioStream.getAudioTracks().forEach((track) => {
@@ -216,7 +249,6 @@ export function useMediaCapture({
 
     const combinedStream = new MediaStream(tracks);
 
-    // Pick best supported MIME type
     let mimeType = 'video/webm;codecs=vp9,opus';
     if (!MediaRecorder.isTypeSupported(mimeType)) {
       mimeType = 'video/webm;codecs=vp8,opus';
@@ -268,13 +300,12 @@ export function useMediaCapture({
         setRecordingDuration(0);
       };
 
-      recorder.start(500); // 500ms chunk slices
+      recorder.start(500);
       mediaRecorderRef.current = recorder;
       recordingStartTimeRef.current = Date.now();
       setIsRecording(true);
       setRecordingDuration(0);
 
-      // Start duration ticker
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = window.setInterval(() => {
         const elapsed = Math.round((Date.now() - recordingStartTimeRef.current) / 1000);

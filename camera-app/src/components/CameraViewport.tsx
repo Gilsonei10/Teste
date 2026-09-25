@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { RefreshCw, Camera } from 'lucide-react';
+import { RefreshCw, Camera, Sparkles, SwitchCamera } from 'lucide-react';
 import type { LayoutMode } from '../types/camera';
 
 interface CameraViewportProps {
@@ -11,6 +11,8 @@ interface CameraViewportProps {
   layoutMode: LayoutMode;
   isSimultaneousSupported: boolean;
   isFlashing: boolean;
+  isCapturingDual?: boolean;
+  dualCaptureStatus?: string | null;
   onSwap: () => void;
 }
 
@@ -23,6 +25,8 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
   layoutMode,
   isSimultaneousSupported,
   isFlashing,
+  isCapturingDual = false,
+  dualCaptureStatus = null,
   onSwap,
 }) => {
   // Bind primary stream to primary video element
@@ -49,6 +53,18 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
         <div className="absolute inset-0 bg-white z-50 pointer-events-none animate-out fade-out duration-150" />
       )}
 
+      {/* Dual Photo Capture Progress Overlay (BeReal mode) */}
+      {isCapturingDual && (
+        <div className="absolute inset-0 bg-black/75 z-40 flex flex-col items-center justify-center p-6 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-16 h-16 rounded-full border-4 border-amber-400 border-t-transparent animate-spin mb-4" />
+          <div className="flex items-center gap-2 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-4 py-2 rounded-full font-semibold text-sm">
+            <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+            <span>{dualCaptureStatus || 'Capturando Foto Dupla...'}</span>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Segure firme para unir as duas câmeras</p>
+        </div>
+      )}
+
       {/* RENDER MODE: SPLIT VERTICAL */}
       {layoutMode === 'split-v' && (
         <div className="w-full h-full flex flex-col">
@@ -67,7 +83,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           </div>
 
           {/* Bottom Video Feed */}
-          <div className="relative flex-1 w-full bg-black overflow-hidden">
+          <div className="relative flex-1 w-full bg-gray-950 overflow-hidden flex flex-col items-center justify-center">
             {secondaryStream && isSimultaneousSupported ? (
               <>
                 <video
@@ -82,11 +98,24 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
                 </div>
               </>
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900/60 p-4 text-center">
-                <Camera className="w-8 h-8 text-gray-500 mb-2" />
-                <p className="text-xs text-gray-400">
-                  Câmera secundária indisponível simultaneamente neste dispositivo.
+              <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-gray-950 to-black">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-3">
+                  <Camera className="w-7 h-7 text-blue-400" />
+                </div>
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  Câmera {isSecondaryFront ? 'Frontal' : 'Traseira'}
+                </h3>
+                <p className="text-xs text-gray-400 max-w-xs mb-4">
+                  Captura automática combinada: ao bater a foto, as duas câmeras são salvas juntas.
                 </p>
+                <button
+                  type="button"
+                  onClick={onSwap}
+                  className="flex items-center gap-2 bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-semibold px-4 py-2 rounded-full border border-white/20 transition-all"
+                >
+                  <SwitchCamera className="w-4 h-4 text-blue-400" />
+                  Alternar Visor para {isSecondaryFront ? 'Frontal' : 'Traseira'}
+                </button>
               </div>
             )}
           </div>
@@ -111,7 +140,7 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           </div>
 
           {/* Right Video Feed */}
-          <div className="relative flex-1 h-full bg-black overflow-hidden">
+          <div className="relative flex-1 h-full bg-gray-950 overflow-hidden flex flex-col items-center justify-center">
             {secondaryStream && isSimultaneousSupported ? (
               <>
                 <video
@@ -126,11 +155,19 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
                 </div>
               </>
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900/60 p-4 text-center">
-                <Camera className="w-8 h-8 text-gray-500 mb-2" />
-                <p className="text-xs text-gray-400">
-                  Câmera secundária em espera.
+              <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-black/90">
+                <Camera className="w-6 h-6 text-blue-400 mb-2" />
+                <p className="text-xs text-gray-300 font-medium mb-3">
+                  {isSecondaryFront ? 'Frontal' : 'Traseira'}
                 </p>
+                <button
+                  type="button"
+                  onClick={onSwap}
+                  className="p-2 rounded-full bg-white/20 text-white active:scale-95"
+                  title="Alternar Câmera"
+                >
+                  <SwitchCamera className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
@@ -154,29 +191,40 @@ export const CameraViewport: React.FC<CameraViewportProps> = ({
           </div>
 
           {/* Floating Picture-in-Picture Window */}
-          {secondaryStream && isSimultaneousSupported && (
-            <div
-              onClick={onSwap}
-              role="button"
-              tabIndex={0}
-              title="Toque para alternar câmeras"
-              className="absolute top-16 right-4 w-28 h-40 rounded-2xl overflow-hidden border-2 border-white/90 shadow-2xl z-20 cursor-pointer active:scale-95 transition-transform group bg-black"
-            >
-              <video
-                ref={secondaryVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-cover ${isSecondaryFront ? '-scale-x-100' : ''}`}
-              />
-              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                <RefreshCw className="w-5 h-5 text-white drop-shadow-md" />
+          <div
+            onClick={onSwap}
+            role="button"
+            tabIndex={0}
+            title="Toque para alternar câmeras"
+            className="absolute top-16 right-4 w-28 h-40 rounded-2xl overflow-hidden border-2 border-white/90 shadow-2xl z-20 cursor-pointer active:scale-95 transition-transform group bg-black/80 backdrop-blur-md flex flex-col items-center justify-center"
+          >
+            {secondaryStream && isSimultaneousSupported ? (
+              <>
+                <video
+                  ref={secondaryVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${isSecondaryFront ? '-scale-x-100' : ''}`}
+                />
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <RefreshCw className="w-5 h-5 text-white drop-shadow-md" />
+                </div>
+              </>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-gray-900/90 group-hover:bg-gray-800 transition-colors">
+                <SwitchCamera className="w-6 h-6 text-blue-400 mb-1.5 animate-pulse" />
+                <span className="text-[10px] font-semibold text-white uppercase tracking-wider">
+                  {isSecondaryFront ? 'Frontal' : 'Traseira'}
+                </span>
+                <span className="text-[9px] text-gray-400 mt-1">Toque p/ alternar</span>
               </div>
-              <div className="absolute bottom-1.5 left-2 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] font-medium text-white uppercase">
-                {isSecondaryFront ? 'Frontal' : 'Traseira'}
-              </div>
+            )}
+
+            <div className="absolute bottom-1.5 left-2 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] font-medium text-white uppercase pointer-events-none">
+              {isSecondaryFront ? 'Frontal' : 'Traseira'}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

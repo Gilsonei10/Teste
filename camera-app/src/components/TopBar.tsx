@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, RectangleVertical, RectangleHorizontal, Video, AlertCircle, Sparkles } from 'lucide-react';
+import { LayoutGrid, RectangleVertical, RectangleHorizontal, Video, Sparkles } from 'lucide-react';
 import type { LayoutMode } from '../types/camera';
 
 interface TopBarProps {
@@ -38,9 +38,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             2 Câmeras Ativas
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
-            <AlertCircle className="w-3 h-3 text-amber-400" />
-            Modo Alternado
+          <span className="flex items-center gap-1 text-[11px] font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full">
+            <Sparkles className="w-3 h-3 text-indigo-400" />
+            Dual Cam Ativa
           </span>
         )}
       </div>

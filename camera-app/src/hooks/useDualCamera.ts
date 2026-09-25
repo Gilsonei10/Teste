@@ -13,6 +13,8 @@ export function useDualCamera() {
   const [isPermissionGranted, setIsPermissionGranted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isCapturingDual, setIsCapturingDual] = useState<boolean>(false);
+  const [dualCaptureStatus, setDualCaptureStatus] = useState<string | null>(null);
 
   // References to keep track of active tracks for clean disposal
   const backStreamRef = useRef<MediaStream | null>(null);
@@ -85,18 +87,14 @@ export function useDualCamera() {
 
       setAvailableCameras(cameras);
 
-      const backCamera = cameras.find(c => c.facing === 'environment') || cameras[0];
-      const frontCamera = cameras.find(c => c.facing === 'user' && c.deviceId !== backCamera?.deviceId) || cameras[1];
-
-      // 3. Try opening rear (environment) camera
+      // 3. Open primary camera (environment / back)
       let rearStream: MediaStream | null = null;
       try {
         rearStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            deviceId: backCamera ? { exact: backCamera.deviceId } : undefined,
-            facingMode: backCamera ? undefined : { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           }
         });
         backStreamRef.current = rearStream;
@@ -110,26 +108,20 @@ export function useDualCamera() {
         setBackStream(rearStream);
       }
 
-      // 4. Try opening front (user) camera simultaneously
-      if (frontCamera || cameras.length > 1) {
-        try {
-          const selfieStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: frontCamera ? { exact: frontCamera.deviceId } : undefined,
-              facingMode: frontCamera ? undefined : { ideal: 'user' },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            }
-          });
-          frontStreamRef.current = selfieStream;
-          setFrontStream(selfieStream);
-          setIsSimultaneousSupported(true);
-        } catch (simultaneousErr) {
-          console.warn('O dispositivo não suporta abertura de duas câmeras no mesmo instante de hardware:', simultaneousErr);
-          setIsSimultaneousSupported(false);
-        }
-      } else {
-        // Only one camera device was reported by the system
+      // 4. Test opening front camera simultaneously with low resolution (to be as lightweight as possible)
+      try {
+        const selfieStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'user' },
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+          }
+        });
+        frontStreamRef.current = selfieStream;
+        setFrontStream(selfieStream);
+        setIsSimultaneousSupported(true);
+      } catch (simultaneousErr) {
+        console.warn('Hardware camera lock detectado: Ativando Modo Duplo Inteligente (BeReal).', simultaneousErr);
         setIsSimultaneousSupported(false);
       }
     } catch (err: unknown) {
@@ -142,16 +134,12 @@ export function useDualCamera() {
     }
   }, []);
 
-  // Swap primary view (back <-> front)
-  const swapCameras = useCallback(() => {
-    setPrimaryFacing(prev => (prev === 'environment' ? 'user' : 'environment'));
-  }, []);
-
-  // In case device doesn't support simultaneous hardware streams, allow toggling active camera
+  // Actively switch which camera sensor is open on the hardware
   const switchActiveCamera = useCallback(async (targetFacing: 'environment' | 'user') => {
     try {
       setIsLoading(true);
-      // Stop existing streams
+
+      // Stop current active streams
       if (backStreamRef.current) {
         backStreamRef.current.getTracks().forEach(t => t.stop());
         backStreamRef.current = null;
@@ -166,8 +154,8 @@ export function useDualCamera() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: targetFacing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         }
       });
 
@@ -180,11 +168,104 @@ export function useDualCamera() {
       }
       setPrimaryFacing(targetFacing);
     } catch (err) {
-      console.error('Falha ao alternar câmera:', err);
+      console.error('Falha ao alternar câmera no hardware:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  // Swap primary view (back <-> front)
+  const swapCameras = useCallback(async () => {
+    if (isSimultaneousSupported) {
+      setPrimaryFacing(prev => (prev === 'environment' ? 'user' : 'environment'));
+    } else {
+      const nextFacing = primaryFacing === 'environment' ? 'user' : 'environment';
+      await switchActiveCamera(nextFacing);
+    }
+  }, [isSimultaneousSupported, primaryFacing, switchActiveCamera]);
+
+  // Capture sequential dual frames (BeReal mode) when hardware locks simultaneous sessions
+  const captureSequentialDualFrames = useCallback(async (
+    primaryVideo: HTMLVideoElement
+  ): Promise<{ primaryCanvas: HTMLCanvasElement; secondaryCanvas: HTMLCanvasElement } | null> => {
+    setIsCapturingDual(true);
+    try {
+      // 1. Capture primary frame (e.g. Back camera)
+      setDualCaptureStatus(primaryFacing === 'environment' ? 'Capturando Traseira...' : 'Capturando Frontal...');
+      const c1 = document.createElement('canvas');
+      c1.width = primaryVideo.videoWidth || 1280;
+      c1.height = primaryVideo.videoHeight || 720;
+      const ctx1 = c1.getContext('2d');
+      if (ctx1) {
+        ctx1.drawImage(primaryVideo, 0, 0, c1.width, c1.height);
+      }
+
+      // 2. Switch to opposite camera
+      const oppositeFacing = primaryFacing === 'environment' ? 'user' : 'environment';
+      setDualCaptureStatus(oppositeFacing === 'user' ? 'Capturando Frontal...' : 'Capturando Traseira...');
+
+      // Stop current active stream
+      const currentStream = primaryFacing === 'environment' ? backStreamRef.current : frontStreamRef.current;
+      currentStream?.getTracks().forEach(t => t.stop());
+
+      // Open opposite camera
+      const secondStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: oppositeFacing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      primaryVideo.srcObject = secondStream;
+      await new Promise<void>((resolve) => {
+        primaryVideo.onloadeddata = () => resolve();
+        setTimeout(resolve, 400);
+      });
+
+      // Brief delay for camera sensor auto-exposure stabilization
+      await new Promise(r => setTimeout(r, 200));
+
+      // 3. Capture second frame
+      const c2 = document.createElement('canvas');
+      c2.width = primaryVideo.videoWidth || 1280;
+      c2.height = primaryVideo.videoHeight || 720;
+      const ctx2 = c2.getContext('2d');
+      if (ctx2) {
+        ctx2.drawImage(primaryVideo, 0, 0, c2.width, c2.height);
+      }
+
+      // 4. Restore original camera stream
+      secondStream.getTracks().forEach(t => t.stop());
+      const restoredStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: primaryFacing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      if (primaryFacing === 'environment') {
+        backStreamRef.current = restoredStream;
+        setBackStream(restoredStream);
+      } else {
+        frontStreamRef.current = restoredStream;
+        setFrontStream(restoredStream);
+      }
+      primaryVideo.srcObject = restoredStream;
+
+      return {
+        primaryCanvas: c1,
+        secondaryCanvas: c2,
+      };
+    } catch (err) {
+      console.error('Erro na captura sequencial dupla:', err);
+      return null;
+    } finally {
+      setIsCapturingDual(false);
+      setDualCaptureStatus(null);
+    }
+  }, [primaryFacing]);
 
   useEffect(() => {
     initializeCameras();
@@ -204,9 +285,12 @@ export function useDualCamera() {
     isLoading,
     errorMessage,
     availableCameras,
+    isCapturingDual,
+    dualCaptureStatus,
     setLayoutMode,
     swapCameras,
     switchActiveCamera,
+    captureSequentialDualFrames,
     initializeCameras,
   };
 }
