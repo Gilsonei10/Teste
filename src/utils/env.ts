@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 /**
  * Detecção de ambiente de execução (webOS, Smart TV, Native ou Web)
  */
@@ -11,6 +13,26 @@ export function isWebOSEnvironment(): boolean {
   return isWebOSUa || hasWebOSObj || isFileProtocol;
 }
 
+export function isNativeEnvironment(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+  } catch {
+    // ignore
+  }
+  const isCapacitorWindow =
+    typeof (window as any).Capacitor !== 'undefined' &&
+    Boolean((window as any).Capacitor?.isNativePlatform?.());
+  const isNativeScheme =
+    window.location.protocol === 'file:' ||
+    window.location.protocol === 'capacitor:';
+  return isCapacitorWindow || isNativeScheme;
+}
+
+export function isDirectNetworkEnvironment(): boolean {
+  return isWebOSEnvironment() || isNativeEnvironment();
+}
+
 export function isTvOrNativeEnvironment(): boolean {
   if (typeof window === 'undefined') return false;
   if (isWebOSEnvironment()) return true;
@@ -22,6 +44,5 @@ export function isTvOrNativeEnvironment(): boolean {
     ua.includes('crkey') ||
     ua.includes('appletv') ||
     ua.includes('android tv');
-  const isNative = window.location.protocol === 'file:' || window.location.protocol === 'capacitor:';
-  return isTvUa || isNative;
+  return isTvUa || isNativeEnvironment();
 }

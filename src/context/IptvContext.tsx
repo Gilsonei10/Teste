@@ -12,7 +12,8 @@ import {
 import { StorageService } from '../services/storageService';
 import { XtreamService } from '../services/xtreamService';
 import { parseM3U } from '../services/m3uParser';
-import { isWebOSEnvironment } from '../utils/env';
+import { isDirectNetworkEnvironment, isNativeEnvironment } from '../utils/env';
+import { CapacitorHttp } from '@capacitor/core';
 import {
   DEMO_LIVE_CATEGORIES,
   DEMO_LIVE_CHANNELS,
@@ -287,38 +288,90 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Para arquivos M3U normais/estáticos (ou caso a API Xtream não responda), baixar e processar diretamente
       try {
         setLoadingMessage('Baixando lista M3U...');
-        let res: Response;
-        const shouldUseProxy = settings.useCorsProxy && settings.corsProxyUrl && !isWebOSEnvironment();
+        let text = '';
 
-        if (shouldUseProxy) {
+        if (isNativeEnvironment()) {
           try {
-            const proxyUrl = `${settings.corsProxyUrl}${encodeURIComponent(cleanUrl)}`;
-            res = await fetch(proxyUrl);
-            if (!res.ok) {
-              console.warn(`[M3U] Proxy falhou com status ${res.status}. Tentando requisição direta...`);
-              res = await fetch(cleanUrl);
+            const capRes = await CapacitorHttp.get({
+              url: cleanUrl,
+              headers: {
+                'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+                'Accept': '*/*',
+              },
+              responseType: 'text',
+              connectTimeout: 20000,
+              readTimeout: 45000,
+            });
+
+            if (capRes.status >= 400) {
+              if (capRes.status === 404) {
+                throw new Error('Lista não encontrada (404). Verifique se o link ou a senha foram digitados corretamente.');
+              }
+              if (capRes.status === 500) {
+                throw new Error('O servidor retornou erro interno (500). Verifique se o servidor está online.');
+              }
+              throw new Error(`Falha ao baixar lista M3U (Status HTTP ${capRes.status}). Verifique se o link está online.`);
             }
-          } catch (proxyErr) {
-            console.warn('[M3U] Erro de rede no proxy. Tentando requisição direta...', proxyErr);
-            res = await fetch(cleanUrl);
+
+            text = typeof capRes.data === 'string' ? capRes.data : JSON.stringify(capRes.data);
+          } catch (capErr: any) {
+            console.warn('[M3U] Falha no CapacitorHttp, tentando requisição direta...', capErr);
+            const res = await fetch(cleanUrl);
+            if (!res.ok) {
+              throw new Error(`Falha ao baixar lista M3U (Status HTTP ${res.status}). Verifique se o link está online.`);
+            }
+            text = await res.text();
           }
         } else {
-          res = await fetch(cleanUrl);
+          let res: Response;
+          const shouldUseProxy =
+            settings.useCorsProxy &&
+            settings.corsProxyUrl &&
+            !isDirectNetworkEnvironment() &&
+            !(settings.corsProxyUrl.startsWith('/') && isNativeEnvironment());
+
+          if (shouldUseProxy) {
+            try {
+              const proxyUrl = `${settings.corsProxyUrl}${encodeURIComponent(cleanUrl)}`;
+              res = await fetch(proxyUrl);
+              if (!res.ok) {
+                console.warn(`[M3U] Proxy falhou com status ${res.status}. Tentando requisição direta...`);
+                res = await fetch(cleanUrl);
+              }
+            } catch (proxyErr) {
+              console.warn('[M3U] Erro de rede no proxy. Tentando requisição direta...', proxyErr);
+              res = await fetch(cleanUrl);
+            }
+          } else {
+            res = await fetch(cleanUrl);
+          }
+
+          if (!res.ok) {
+            if (res.status === 500) {
+              throw new Error('O servidor retornou erro interno (500). Verifique se o servidor está online ou se as credenciais estão corretas.');
+            }
+            if (res.status === 404) {
+              throw new Error('Lista não encontrada (404). Verifique se o link ou a senha foram digitados corretamente.');
+            }
+            throw new Error(`Falha ao baixar lista M3U (Status HTTP ${res.status}). Verifique se o link está online.`);
+          }
+
+          text = await res.text();
         }
 
-        if (!res.ok) {
-          if (res.status === 500) {
-            throw new Error('O servidor retornou erro interno (500). Verifique se o servidor está online ou se as credenciais estão corretas.');
-          }
-          if (res.status === 404) {
-            throw new Error('Lista não encontrada (404). Verifique se o link ou a senha foram digitados corretamente.');
-          }
-          throw new Error(`Falha ao baixar lista M3U (Status HTTP ${res.status}). Verifique se o link está online.`);
-        }
-
-        const text = await res.text();
-        if (!text || text.length < 10) {
+        if (!text || text.trim().length < 10) {
           throw new Error('A lista M3U retornou vazia ou inválida.');
+        }
+
+        const trimmed = text.trim();
+        if (
+          (trimmed.startsWith('<!DOCTYPE html') ||
+            trimmed.startsWith('<!doctype html') ||
+            trimmed.startsWith('<html') ||
+            (trimmed.includes('<body') && trimmed.includes('</html>'))) &&
+          !trimmed.includes('#EXTINF')
+        ) {
+          throw new Error('O servidor retornou uma página web (HTML) em vez de um arquivo M3U. Verifique se o link, usuário ou senha estão corretos.');
         }
 
         setLoadingMessage('Processando canais, filmes e séries...');
@@ -364,20 +417,39 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (active.type === 'm3u_url' && active.url) {
       try {
-        let res: Response;
-        const shouldUseProxy = settings.useCorsProxy && settings.corsProxyUrl && !isWebOSEnvironment();
-        if (shouldUseProxy) {
-          try {
-            res = await fetch(`${settings.corsProxyUrl}${encodeURIComponent(active.url)}`);
-            if (!res.ok) res = await fetch(active.url);
-          } catch {
-            res = await fetch(active.url);
+        let text = '';
+        if (isNativeEnvironment()) {
+          const capRes = await CapacitorHttp.get({
+            url: active.url,
+            headers: { 'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18' },
+            responseType: 'text',
+          });
+          if (capRes.status >= 200 && capRes.status < 300) {
+            text = typeof capRes.data === 'string' ? capRes.data : JSON.stringify(capRes.data);
           }
         } else {
-          res = await fetch(active.url);
+          let res: Response;
+          const shouldUseProxy =
+            settings.useCorsProxy &&
+            settings.corsProxyUrl &&
+            !isDirectNetworkEnvironment() &&
+            !(settings.corsProxyUrl.startsWith('/') && isNativeEnvironment());
+          if (shouldUseProxy) {
+            try {
+              res = await fetch(`${settings.corsProxyUrl}${encodeURIComponent(active.url)}`);
+              if (!res.ok) res = await fetch(active.url);
+            } catch {
+              res = await fetch(active.url);
+            }
+          } else {
+            res = await fetch(active.url);
+          }
+          if (res.ok) {
+            text = await res.text();
+          }
         }
-        if (res.ok) {
-          const text = await res.text();
+
+        if (text) {
           const parsed = parseM3U(text);
           if (parsed.liveChannels.length > 0) {
             setLiveChannels(parsed.liveChannels);

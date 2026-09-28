@@ -3,7 +3,7 @@ import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 import { useIptv } from '../../context/IptvContext';
 import { StorageService } from '../../services/storageService';
-import { isWebOSEnvironment } from '../../utils/env';
+import { isDirectNetworkEnvironment, isNativeEnvironment } from '../../utils/env';
 import {
   Play,
   Pause,
@@ -196,7 +196,8 @@ export const VideoPlayer: React.FC = () => {
       const shouldUseProxy =
         settings.useCorsProxy &&
         settings.corsProxyUrl &&
-        !isWebOSEnvironment() &&
+        !isDirectNetworkEnvironment() &&
+        !(settings.corsProxyUrl.startsWith('/') && isNativeEnvironment()) &&
         !targetUrl.startsWith('/proxy?url=');
 
       if (shouldUseProxy) {

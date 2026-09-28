@@ -1,5 +1,6 @@
 import { Category, LiveChannel, MovieItem, SeriesItem, SeasonItem, EpisodeItem, XtreamCredentials, AppSettings } from '../types/iptv';
-import { isWebOSEnvironment } from '../utils/env';
+import { isDirectNetworkEnvironment, isNativeEnvironment } from '../utils/env';
+import { CapacitorHttp } from '@capacitor/core';
 
 export interface XtreamAuthResponse {
   user_info: {
@@ -56,7 +57,8 @@ export class XtreamService {
     const shouldUseProxy =
       this.settings.useCorsProxy &&
       this.settings.corsProxyUrl &&
-      !isWebOSEnvironment();
+      !isDirectNetworkEnvironment() &&
+      !(this.settings.corsProxyUrl.startsWith('/') && isNativeEnvironment());
 
     if (shouldUseProxy) {
       const proxyUrl = `${this.settings.corsProxyUrl}${encodeURIComponent(rawUrl)}`;
@@ -68,6 +70,30 @@ export class XtreamService {
         console.warn(`[Xtream] Proxy falhou com status ${res.status}. Tentando requisição direta...`);
       } catch (proxyErr) {
         console.warn('[Xtream] Erro no proxy ao acessar API. Tentando requisição direta...', proxyErr);
+      }
+    }
+
+    if (isNativeEnvironment()) {
+      try {
+        const capRes = await CapacitorHttp.get({
+          url: rawUrl,
+          headers: {
+            'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+            'Accept': '*/*',
+          },
+          connectTimeout: 20000,
+          readTimeout: 35000,
+        });
+
+        return {
+          ok: capRes.status >= 200 && capRes.status < 300,
+          status: capRes.status,
+          headers: new Headers((capRes.headers || {}) as Record<string, string>),
+          json: async () => (typeof capRes.data === 'string' ? JSON.parse(capRes.data) : capRes.data),
+          text: async () => (typeof capRes.data === 'string' ? capRes.data : JSON.stringify(capRes.data)),
+        } as Response;
+      } catch (nativeErr) {
+        console.warn('[Xtream] Erro no CapacitorHttp, tentando fetch padrão...', nativeErr);
       }
     }
 

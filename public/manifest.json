@@ -1,6 +1,6 @@
 {
-  "name": "Web IPTV Hub - TV, Filmes e Séries",
-  "short_name": "Web IPTV",
+  "name": "Play Live IPTV - TV, Filmes e Séries",
+  "short_name": "Play Live",
   "description": "Aplicativo Universal de IPTV para Smart TVs, Celulares e Computadores",
   "start_url": "/",
   "display": "standalone",

@@ -5,6 +5,8 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -16,6 +18,23 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         enableFullScreen();
+        configureWebView();
+    }
+
+    private void configureWebView() {
+        try {
+            WebView webView = this.getBridge() != null ? this.getBridge().getWebView() : null;
+            if (webView != null) {
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                webSettings.setAllowFileAccess(true);
+                webSettings.setAllowContentAccess(true);
+                webSettings.setDomStorageEnabled(true);
+                webSettings.setDatabaseEnabled(true);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

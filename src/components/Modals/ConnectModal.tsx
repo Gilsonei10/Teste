@@ -68,10 +68,10 @@ export const ConnectModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 select-none">
-      <div className="bg-tv-surface border border-tv-border rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-tv-surface border border-tv-border rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[94vh] max-h-[94dvh] my-auto">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-tv-border flex items-center justify-between bg-tv-card/50">
+        <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-tv-border flex items-center justify-between bg-tv-card/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400">
               <Server className="w-5 h-5" />
@@ -90,7 +90,7 @@ export const ConnectModal: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="grid grid-cols-3 border-b border-tv-border bg-tv-bg/50">
+        <div className="grid grid-cols-3 border-b border-tv-border bg-tv-bg/50 shrink-0">
           <button
             onClick={() => {
               setActiveTab('xtream');
@@ -136,7 +136,7 @@ export const ConnectModal: React.FC = () => {
         </div>
 
         {/* Body Form */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 select-text overscroll-contain touch-pan-y">
           {errorMessage && (
             <div className="mb-5 p-3.5 bg-red-500/15 border border-red-500/30 rounded-xl text-red-300 text-xs md:text-sm">
               {errorMessage}
@@ -298,7 +298,7 @@ export const ConnectModal: React.FC = () => {
 
           {/* TAB 3: LISTAS SALVAS */}
           {activeTab === 'saved' && (
-            <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+            <div className="space-y-3">
               {savedPlaylists.length === 0 ? (
                 <div className="text-center py-10 text-slate-400 text-sm">
                   Nenhuma lista salva ainda. Conecte-se usando Xtream Codes ou M3U para salvar aqui.
