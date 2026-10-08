@@ -79,9 +79,31 @@ export const RNDetectorRadar: React.FC<RNDetectorRadarProps> = ({
           <text x="100" y="184" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">S</text>
           <text x="18" y="104" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">O</text>
 
-          {/* Center Observer / Base Pin */}
-          <circle cx="100" cy="100" r="5" fill="#10b981" />
-          <circle cx="100" cy="100" r="8" fill="none" stroke="#10b981" strokeWidth="1.5" className="animate-ping opacity-60" />
+          {/* Center Observer / Navigation Arrow (Setazinha Verde) */}
+          <g
+            transform={`rotate(${azimuth}, 100, 100)`}
+            className="transition-transform duration-300"
+          >
+            {/* Halo pulsante */}
+            <circle
+              cx="100"
+              cy="100"
+              r="13"
+              fill="rgba(16, 185, 129, 0.2)"
+              className="animate-pulse"
+            />
+            {/* Setazinha Verde de Navegação (mesma cor #10b981) */}
+            <polygon
+              points="100,84 91,108 100,102 109,108"
+              fill="#10b981"
+              stroke="#047857"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              className="drop-shadow"
+            />
+            {/* Ponto central pivô */}
+            <circle cx="100" cy="100" r="2.5" fill="#ffffff" />
+          </g>
 
           {/* Target RN Blip */}
           {target && (

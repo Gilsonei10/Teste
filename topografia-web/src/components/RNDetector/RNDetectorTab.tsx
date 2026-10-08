@@ -77,7 +77,9 @@ export const RNDetectorTab: React.FC<RNDetectorTabProps> = ({
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, altitude, accuracy, altitudeAccuracy, heading, speed } = pos.coords;
-        const { easting, northing } = latLonToUtm(latitude, longitude, utmZone);
+        // Calcula a zona UTM automaticamente com base na longitude atual
+        const autoZone = Math.floor((longitude + 180) / 6) + 1;
+        const { easting, northing } = latLonToUtm(latitude, longitude, autoZone || utmZone);
         setGpsData({
           latitude,
           longitude,
@@ -111,6 +113,15 @@ export const RNDetectorTab: React.FC<RNDetectorTabProps> = ({
     }
     setGpsStatus('idle');
   };
+
+  // Ativa automaticamente o GPS se estiver abrindo em celular
+  useEffect(() => {
+    const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+    if (isMobile && 'geolocation' in navigator) {
+      setSourceMode('gps');
+      startGPS();
+    }
+  }, []);
 
   // Clean up GPS on unmount
   useEffect(() => {
@@ -183,6 +194,56 @@ export const RNDetectorTab: React.FC<RNDetectorTabProps> = ({
   const handleDeleteBenchmark = (id: string) => {
     setBenchmarks((prev) => prev.filter((b) => b.id !== id));
     if (selectedId === id) setSelectedId(null);
+  };
+
+  // Cria um marco de teste a 15 metros na frente da posição atual para caminhar e ver o radar em ação
+  const handleCreateTestTarget = () => {
+    const targetX = currentCoords.x;
+    const targetY = currentCoords.y + 15;
+    const targetZ = currentCoords.z;
+
+    const testBm: RNBenchmark = {
+      id: `test_rn_${Date.now()}`,
+      code: 'RN-TESTE-15M',
+      name: 'Marco de Teste (15m à sua frente)',
+      type: 'local',
+      x: Math.round(targetX * 100) / 100,
+      y: Math.round(targetY * 100) / 100,
+      z: Math.round(targetZ * 100) / 100,
+      description: 'Ponto de teste para caminhar e verificar a aproximação em tempo real',
+    };
+
+    setBenchmarks((prev) => [testBm, ...prev.filter((b) => b.code !== 'RN-TESTE-15M')]);
+    setSelectedId(testBm.id);
+  };
+
+  // Grava as coordenadas atuais do GPS/celular como a Base RTK do projeto
+  const handleSetCurrentAsBase = () => {
+    onUpdateBase({
+      ...base,
+      name: 'BASE_GPS_CAMPO',
+      x: currentCoords.x,
+      y: currentCoords.y,
+      z: currentCoords.z,
+      description: 'Posição gravada pelo GPS móvel em campo',
+    });
+    alert(`Posição atual gravada com sucesso como Base RTK!\nEste: ${currentCoords.x.toFixed(2)}m\nNorte: ${currentCoords.y.toFixed(2)}m\nCota: ${currentCoords.z.toFixed(2)}m`);
+  };
+
+  // Cadastra a posição atual como um novo RN geodésico
+  const handleSaveCurrentAsRN = () => {
+    const code = prompt('Código do novo RN (ex: RN-01):', `RN-${benchmarks.length + 1}`) || `RN-${benchmarks.length + 1}`;
+    const newBm: RNBenchmark = {
+      id: `rn_campo_${Date.now()}`,
+      code: code.trim().toUpperCase(),
+      name: `Marco ${code.trim().toUpperCase()} (Gravado no Campo)`,
+      type: 'marco_concreto',
+      x: currentCoords.x,
+      y: currentCoords.y,
+      z: currentCoords.z,
+      description: 'Cadastrado no local via sensor do smartphone',
+    };
+    handleAddBenchmark(newBm);
   };
 
   const handleResetBenchmarks = () => {
@@ -406,6 +467,53 @@ export const RNDetectorTab: React.FC<RNDetectorTabProps> = ({
             </select>
           </div>
         </div>
+
+        {/* Field Quick Actions Toolbar (Ações Rápidas de Campo) */}
+        <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              ⚡ Ações de Campo:
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleCreateTestTarget}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition cursor-pointer shadow border border-emerald-500/50"
+              title="Cria um marco a 15 metros para você caminhar e ver a setazinha verde e a distância se aproximando"
+            >
+              📍 Testar Caminhada (Criar Alvo a 15m)
+            </button>
+            <button
+              onClick={handleSetCurrentAsBase}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 text-cyan-200 font-semibold transition cursor-pointer border border-cyan-700/50"
+              title="Define as coordenadas do seu celular como a Base do projeto"
+            >
+              📌 Definir Base Aqui
+            </button>
+            <button
+              onClick={handleSaveCurrentAsRN}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition cursor-pointer border border-slate-700"
+              title="Salva a coordenada atual como um novo RN no banco"
+            >
+              ➕ Salvar como RN
+            </button>
+          </div>
+        </div>
+
+        {/* Helpful notice when target is far away (> 500m) */}
+        {activeTarget && activeTarget.distance > 500 && (
+          <div className="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-800/40 p-2.5 rounded-lg flex items-center justify-between gap-2">
+            <span>
+              ℹ️ Você está a <strong>{(activeTarget.distance / 1000).toFixed(0)} km</strong> deste marco de exemplo. Para testar o radar e a setinha se movendo a cada passo no seu quintal ou obra, clique em <strong>"📍 Testar Caminhada (Criar Alvo a 15m)"</strong>!
+            </span>
+            <button
+              onClick={handleCreateTestTarget}
+              className="px-2 py-1 rounded bg-amber-700/50 hover:bg-amber-600 text-white font-bold text-[10px] shrink-0 cursor-pointer"
+            >
+              Criar Alvo a 15m
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Grid: Radar/Calculator on Left, Benchmark Database on Right */}
