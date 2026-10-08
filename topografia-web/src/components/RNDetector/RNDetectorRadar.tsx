@@ -11,23 +11,25 @@ export const RNDetectorRadar: React.FC<RNDetectorRadarProps> = ({
   target,
   toleranceMeters,
 }) => {
-  // If target is detected or nearby, compute normalized position on radar circle
-  // Max radar radius visually represents 30 meters
-  const maxRadius = 30;
   const distance = target ? target.distance : 0;
   const azimuth = target ? target.azimuth : 0;
-
-  // Normalized distance 0 to 1
-  const normDist = Math.min(distance / maxRadius, 1.0);
-  // Convert azimuth (0 = North/Up, 90 = East/Right) to SVG radians
-  const angleRad = ((azimuth - 90) * Math.PI) / 180;
-  
-  // Center is at 100, 100, radius is 85
-  const radarRadius = 85;
-  const blipX = 100 + Math.cos(angleRad) * (normDist * radarRadius);
-  const blipY = 100 + Math.sin(angleRad) * (normDist * radarRadius);
-
   const isDetected = target ? target.isDetected : false;
+
+  // Escala adaptativa do radar:
+  // Se a distância for menor que 30m, radar fixo em 30m (zoom fino de aproximação)
+  // Se for maior, expande para mostrar a seta verde se movendo dentro do raio
+  const maxRadius = distance <= 30 ? 30 : Math.min(distance * 1.15, 1000);
+  const normDist = Math.min(distance / maxRadius, 1.0);
+  const radarRadius = 85;
+
+  // A BASE / RN É O MARCO FIXO NO CENTRO (100, 100)
+  // A SETA VERDE É VOCÊ (CELULAR / OPERADOR) QUE SE MOVE EM DIREÇÃO À BASE
+  // Como o azimute de você até a Base é "azimuth":
+  // A sua posição no radar fica na direção oposta (ao Sul se a base está ao Norte)
+  const screenDist = normDist * radarRadius;
+  const azRad = (azimuth * Math.PI) / 180;
+  const arrowX = 100 - Math.sin(azRad) * screenDist;
+  const arrowY = 100 + Math.cos(azRad) * screenDist;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col items-center justify-between shadow-lg relative overflow-hidden">
@@ -40,10 +42,10 @@ export const RNDetectorRadar: React.FC<RNDetectorRadarProps> = ({
       <div className="w-full flex items-center justify-between pb-3 border-b border-slate-800 text-xs">
         <span className="font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
           <Compass className="w-4 h-4 text-emerald-400" />
-          Radar de Proximidade & Azimute
+          Navegação até a Base / RN
         </span>
         <span className="text-[11px] px-2 py-0.5 rounded font-mono bg-slate-800 text-slate-300 border border-slate-700">
-          Alcance: 30m • Tol: {toleranceMeters}m
+          🎯 Base: Centro • 🔺 Você: Seta Verde
         </span>
       </div>
 
@@ -57,17 +59,6 @@ export const RNDetectorRadar: React.FC<RNDetectorRadarProps> = ({
           <circle cx="100" cy="100" r="85" fill="#020617" stroke="#1e293b" strokeWidth="2" />
           <circle cx="100" cy="100" r="56" fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
           <circle cx="100" cy="100" r="28" fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="3 3" />
-          
-          {/* Tolerance circle (Zone of Detection) */}
-          <circle 
-            cx="100" 
-            cy="100" 
-            r={Math.max((toleranceMeters / maxRadius) * radarRadius, 8)} 
-            fill={isDetected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.08)'} 
-            stroke={isDetected ? '#10b981' : '#38bdf8'} 
-            strokeWidth="1.5" 
-            strokeDasharray={isDetected ? 'none' : '2 2'}
-          />
 
           {/* Crosshair grid lines */}
           <line x1="100" y1="15" x2="100" y2="185" stroke="#334155" strokeWidth="1" />
@@ -79,63 +70,80 @@ export const RNDetectorRadar: React.FC<RNDetectorRadarProps> = ({
           <text x="100" y="184" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">S</text>
           <text x="18" y="104" textAnchor="middle" fill="#94a3b8" fontSize="10" fontWeight="bold">O</text>
 
-          {/* Center Observer / Navigation Arrow (Setazinha Verde) */}
-          <g
-            transform={`rotate(${azimuth}, 100, 100)`}
-            className="transition-transform duration-300"
-          >
-            {/* Halo pulsante */}
+          {/* Guide Line from Green Arrow to Center Base */}
+          {target && distance > 0.5 && (
+            <line
+              x1={arrowX}
+              y1={arrowY}
+              x2="100"
+              y2="100"
+              stroke={isDetected ? '#10b981' : '#38bdf8'}
+              strokeWidth="2"
+              strokeDasharray="4 2"
+              opacity="0.8"
+            />
+          )}
+
+          {/* FIXED CENTER: Base RTK / RN Benchmark (Marco Alvo) */}
+          <g>
+            {/* Tolerance circle around Base (Zone of Detection) */}
             <circle
               cx="100"
               cy="100"
-              r="13"
-              fill="rgba(16, 185, 129, 0.2)"
-              className="animate-pulse"
-            />
-            {/* Setazinha Verde de Navegação (mesma cor #10b981) */}
-            <polygon
-              points="100,84 91,108 100,102 109,108"
-              fill="#10b981"
-              stroke="#047857"
+              r={Math.max((toleranceMeters / maxRadius) * radarRadius, 10)}
+              fill={isDetected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.12)'}
+              stroke={isDetected ? '#10b981' : '#38bdf8'}
               strokeWidth="1.5"
-              strokeLinejoin="round"
-              className="drop-shadow"
+              strokeDasharray={isDetected ? 'none' : '2 2'}
+              className={isDetected ? 'animate-ping' : ''}
             />
-            {/* Ponto central pivô */}
+            {/* Base Target Pin */}
+            <circle
+              cx="100"
+              cy="100"
+              r="7"
+              fill={isDetected ? '#10b981' : '#0284c7'}
+              stroke="#ffffff"
+              strokeWidth="1.5"
+            />
             <circle cx="100" cy="100" r="2.5" fill="#ffffff" />
+            <text
+              x="100"
+              y="115"
+              textAnchor="middle"
+              fill={isDetected ? '#34d399' : '#38bdf8'}
+              fontSize="7.5"
+              fontWeight="bold"
+            >
+              BASE
+            </text>
           </g>
 
-          {/* Target RN Blip */}
+          {/* MOVING OPERATOR: Green Navigation Arrow (Seta Verde Móvel) */}
           {target && (
-            <g>
-              {/* Direction line from center to blip */}
-              <line
-                x1="100"
-                y1="100"
-                x2={blipX}
-                y2={blipY}
-                stroke={isDetected ? '#10b981' : '#38bdf8'}
-                strokeWidth="2"
-                strokeDasharray="4 2"
-                opacity="0.8"
-              />
-              {/* Pulsing circle on blip */}
+            <g
+              transform={`rotate(${azimuth}, ${arrowX}, ${arrowY})`}
+              className="transition-all duration-300"
+            >
+              {/* Pulsing halo */}
               <circle
-                cx={blipX}
-                cy={blipY}
-                r="6"
-                fill={isDetected ? '#10b981' : '#38bdf8'}
-                className="transition-all duration-300"
+                cx={arrowX}
+                cy={arrowY}
+                r="12"
+                fill="rgba(16, 185, 129, 0.25)"
+                className="animate-pulse"
               />
-              <circle
-                cx={blipX}
-                cy={blipY}
-                r="11"
-                fill="none"
-                stroke={isDetected ? '#10b981' : '#38bdf8'}
+              {/* Seta Verde Apontando em Direção à Base */}
+              <polygon
+                points={`${arrowX},${arrowY - 14} ${arrowX - 8},${arrowY + 8} ${arrowX},${arrowY + 3} ${arrowX + 8},${arrowY + 8}`}
+                fill="#10b981"
+                stroke="#047857"
                 strokeWidth="1.5"
-                opacity="0.6"
+                strokeLinejoin="round"
+                className="drop-shadow-lg"
               />
+              {/* Ponto pivô */}
+              <circle cx={arrowX} cy={arrowY} r="2" fill="#ffffff" />
             </g>
           )}
         </svg>
@@ -143,12 +151,12 @@ export const RNDetectorRadar: React.FC<RNDetectorRadarProps> = ({
         {/* Floating live distance label in center of target pointer */}
         {target && (
           <div className="absolute -bottom-2 bg-slate-950/90 border border-slate-700 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-md">
-            <Navigation 
-              className="w-3.5 h-3.5 text-emerald-400" 
-              style={{ transform: `rotate(${azimuth}deg)` }} 
+            <Navigation
+              className="w-3.5 h-3.5 text-emerald-400"
+              style={{ transform: `rotate(${azimuth}deg)` }}
             />
             <span className="text-xs font-mono font-bold text-slate-100">
-              {target.distance.toFixed(2)} m
+              {target.distance < 1000 ? `${target.distance.toFixed(2)} m` : `${(target.distance / 1000).toFixed(2)} km`}
             </span>
             <span className="text-[10px] text-slate-400">
               ({target.azimuth.toFixed(0)}°)
@@ -162,11 +170,11 @@ export const RNDetectorRadar: React.FC<RNDetectorRadarProps> = ({
         {target ? (
           <>
             <div>
-              <p className="text-slate-400 text-[11px]">Alvo Selecionado:</p>
+              <p className="text-slate-400 text-[11px]">Marco Alvo (Fixo no Centro):</p>
               <p className="font-semibold text-slate-200">{target.benchmark.name}</p>
             </div>
             <div className="text-right">
-              <p className="text-slate-400 text-[11px]">Rumo / Direção:</p>
+              <p className="text-slate-400 text-[11px]">Rumo de Caminhada:</p>
               <p className="font-bold text-emerald-400">{target.directionLabel}</p>
             </div>
           </>
