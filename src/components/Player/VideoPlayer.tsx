@@ -206,7 +206,7 @@ export const VideoPlayer: React.FC = () => {
 
       // Format detection
       const lowerRaw = rawUrl.toLowerCase();
-      const isExplicitHls = lowerRaw.endsWith('.m3u8') || lowerRaw.includes('.m3u8');
+      const isExplicitHls = lowerRaw.endsWith('.m3u8') || lowerRaw.includes('.m3u8') || lowerRaw.endsWith('/m3u8');
       const isEpisodeOrMovie = currentPlaying?.type === 'episode' || currentPlaying?.type === 'movie';
       const isExplicitTs =
         !isEpisodeOrMovie &&
@@ -278,6 +278,13 @@ export const VideoPlayer: React.FC = () => {
               return;
             }
 
+            // Fallback inteligente para canal ao vivo: se TS falhar, tentar HLS
+            if (currentPlaying && currentPlaying.type === 'live' && !forceFormat && Hls.isSupported()) {
+              console.info('MPEG-TS falhou para canal ao vivo. Tentando Engine HLS...');
+              startPlayback(rawUrl, 'hls');
+              return;
+            }
+
             setPlaybackError('Falha ao decodificar sinal do canal. Tentando recuperar...');
             setIsBuffering(false);
           });
@@ -318,6 +325,13 @@ export const VideoPlayer: React.FC = () => {
                 startPlayback(rawUrl, 'native');
                 return;
               }
+            }
+
+            // Fallback inteligente para canal ao vivo: se HLS falhar, tentar MPEG-TS
+            if (currentPlaying && currentPlaying.type === 'live' && !forceFormat && mpegts.isSupported()) {
+              console.info('HLS falhou para canal ao vivo. Tentando Engine MPEG-TS...');
+              startPlayback(rawUrl, 'ts');
+              return;
             }
 
             switch (data.type) {

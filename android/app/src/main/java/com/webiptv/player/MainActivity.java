@@ -21,12 +21,26 @@ public class MainActivity extends BridgeActivity {
         configureWebView();
     }
 
+    @Override
+    public void onStart() {
+        super.onStart();
+        configureWebView();
+    }
+
     private void configureWebView() {
         try {
-            WebView webView = this.getBridge() != null ? this.getBridge().getWebView() : null;
+            WebView webView = null;
+            if (this.bridge != null) {
+                webView = this.bridge.getWebView();
+            } else if (this.getBridge() != null) {
+                webView = this.getBridge().getWebView();
+            }
             if (webView != null) {
                 WebSettings webSettings = webView.getSettings();
+                // User-Agent VLC essencial para transmissões IPTV (evita rejeição HTTP 403 de streams)
+                webSettings.setUserAgentString("VLC/3.0.18 LibVLC/3.0.18");
                 webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                webSettings.setMediaPlaybackRequiresUserGesture(false);
                 webSettings.setAllowFileAccess(true);
                 webSettings.setAllowContentAccess(true);
                 webSettings.setDomStorageEnabled(true);
@@ -42,6 +56,7 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             enableFullScreen();
+            configureWebView();
         }
     }
 
@@ -49,6 +64,7 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         enableFullScreen();
+        configureWebView();
     }
 
     private void enableFullScreen() {

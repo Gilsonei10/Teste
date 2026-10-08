@@ -4,13 +4,16 @@ const config: CapacitorConfig = {
   appId: 'com.webiptv.player',
   appName: 'Play Live',
   webDir: 'dist',
+  android: {
+    allowMixedContent: true
+  },
   server: {
-    androidScheme: 'https',
+    androidScheme: 'http',
     cleartext: true
   },
   plugins: {
     CapacitorHttp: {
-      enabled: true
+      enabled: false
     }
   }
 };
