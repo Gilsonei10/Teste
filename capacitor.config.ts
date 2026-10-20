@@ -8,7 +8,8 @@ const config: CapacitorConfig = {
     allowMixedContent: true
   },
   server: {
-    androidScheme: 'http',
+    url: 'https://playlive-rust.vercel.app',
+    androidScheme: 'https',
     cleartext: true
   },
   plugins: {
