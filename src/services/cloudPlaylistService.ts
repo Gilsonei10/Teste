@@ -49,14 +49,14 @@ export const CloudPlaylistService = {
   /**
    * Busca a lista cadastrada na nuvem para o MAC e KEY informados.
    */
-  async getRemotePlaylist(mac: string, key: string): Promise<RemotePlaylistData | null> {
+  async getRemotePlaylist(mac: string, key?: string): Promise<RemotePlaylistData | null> {
     const cleanMac = mac.trim().toUpperCase();
-    const cleanKey = key.trim();
+    const cleanKey = (key || '').trim();
     const config = this.getSupabaseConfig();
 
     if (config.isConfigured) {
       try {
-        const queryUrl = `${config.url}/rest/v1/playlists?mac=eq.${encodeURIComponent(cleanMac)}&device_key=eq.${encodeURIComponent(cleanKey)}&select=*`;
+        const queryUrl = `${config.url}/rest/v1/playlists?mac=eq.${encodeURIComponent(cleanMac)}&select=*`;
         const res = await fetch(queryUrl, {
           method: 'GET',
           headers: {
@@ -69,7 +69,10 @@ export const CloudPlaylistService = {
         if (res.ok) {
           const rows: RemotePlaylistData[] = await res.json();
           if (rows && rows.length > 0) {
-            return rows[0];
+            const item = rows[0];
+            if (!item.device_key || !cleanKey || item.device_key === cleanKey) {
+              return item;
+            }
           }
         }
       } catch (err) {
@@ -81,7 +84,7 @@ export const CloudPlaylistService = {
     try {
       const mockDb = JSON.parse(localStorage.getItem(STORAGE_KEYS.LOCAL_MACS) || '{}');
       const item = mockDb[cleanMac];
-      if (item && item.device_key === cleanKey) {
+      if (item && (!item.device_key || !cleanKey || item.device_key === cleanKey)) {
         return item;
       }
     } catch {}
@@ -94,13 +97,10 @@ export const CloudPlaylistService = {
    */
   async saveRemotePlaylist(data: RemotePlaylistData): Promise<{ success: boolean; message: string }> {
     const cleanMac = data.mac.trim().toUpperCase();
-    const cleanKey = data.device_key.trim();
+    const cleanKey = (data.device_key || '').trim();
 
     if (!cleanMac || cleanMac.length < 10) {
       return { success: false, message: 'Endereço MAC inválido.' };
-    }
-    if (!cleanKey) {
-      return { success: false, message: 'Chave do dispositivo (Key) é obrigatória.' };
     }
 
     const payload: RemotePlaylistData = {

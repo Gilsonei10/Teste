@@ -48,7 +48,7 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
       setFeedback({ type: 'error', message: 'Por favor, informe um endereço MAC válido (ex: 00:1A:79:B4:C2:10).' });
       return;
     }
-    if (!deviceKey) {
+    if (activeTab !== 'url' && !deviceKey) {
       setFeedback({ type: 'error', message: 'A chave do dispositivo (Key) de 6 dígitos é obrigatória.' });
       return;
     }
@@ -62,7 +62,7 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
       setIsSubmitting(true);
       const result = await CloudPlaylistService.saveRemotePlaylist({
         mac,
-        device_key: deviceKey,
+        device_key: deviceKey || '',
         name: playlistName.trim() || 'Minha Lista Web',
         type: 'm3u_url',
         url: m3uUrl.trim(),
@@ -264,18 +264,20 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
               </div>
 
               {/* Field: Chave do Dispositivo (KEY) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Chave do Dispositivo (KEY)</label>
-                <input
-                  type="text"
-                  value={deviceKey}
-                  onChange={e => setDeviceKey(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Chave de 6 dígitos"
-                  maxLength={6}
-                  className="w-full bg-[#162038] border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono tracking-wider transition-all"
-                  required
-                />
-              </div>
+              {activeTab !== 'url' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Chave do Dispositivo (KEY)</label>
+                  <input
+                    type="text"
+                    value={deviceKey}
+                    onChange={e => setDeviceKey(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Chave de 6 dígitos"
+                    maxLength={6}
+                    className="w-full bg-[#162038] border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono tracking-wider transition-all"
+                    required
+                  />
+                </div>
+              )}
 
               {/* TAB URL SPECIFIC FIELDS */}
               {activeTab === 'url' && (

@@ -6,7 +6,7 @@
 -- 1. Criar a tabela de playlists vinculadas a MAC e KEY
 create table if not exists public.playlists (
     mac text primary key,
-    device_key text not null,
+    device_key text default '',
     name text default 'Minha Lista',
     type text not null, -- 'm3u_url' ou 'xtream'
     url text,
