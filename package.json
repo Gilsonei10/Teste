@@ -1,12 +1,13 @@
 {
   "name": "web-iptv-player",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "start": "node server.js",
+    "torrent": "node torrent-downloader.js",
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync android",
     "cap:open": "npx cap open android",
@@ -22,7 +23,8 @@
     "lucide-react": "^0.469.0",
     "mpegts.js": "^1.8.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "webtorrent": "^3.0.21"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.1",

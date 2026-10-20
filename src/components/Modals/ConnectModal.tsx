@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useIptv } from '../../context/IptvContext';
-import { Server, Link, FileText, Play, X, Trash2, CheckCircle2, Sparkles, Globe, Tv } from 'lucide-react';
+import { Server, Link, FileText, Play, X, Trash2, CheckCircle2, Sparkles, Globe, Tv, RefreshCw, ExternalLink } from 'lucide-react';
+import { DeviceService } from '../../services/deviceService';
 
 export const ConnectModal: React.FC = () => {
   const {
@@ -12,6 +13,9 @@ export const ConnectModal: React.FC = () => {
     connectM3UUrl,
     connectM3UFile,
     loadDemoData,
+    activateSavedPlaylist,
+    refreshActivePlaylist,
+    checkRemotePlaylist,
     savedPlaylists,
     activePlaylist,
     removeSavedPlaylist,
@@ -21,7 +25,37 @@ export const ConnectModal: React.FC = () => {
     setErrorMessage,
   } = useIptv();
 
-  const [activeTab, setActiveTab] = useState<'xtream' | 'm3u' | 'saved'>('xtream');
+  const [activeTab, setActiveTab] = useState<'mac' | 'xtream' | 'm3u' | 'saved'>('mac');
+  const [deviceInfo] = useState(() => DeviceService.getDeviceInfo());
+  const [isCheckingCloud, setIsCheckingCloud] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState<string | null>(null);
+  const [copiedMac, setCopiedMac] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  const copyToClipboard = (text: string, type: 'mac' | 'key') => {
+    try {
+      navigator.clipboard?.writeText(text);
+      if (type === 'mac') {
+        setCopiedMac(true);
+        setTimeout(() => setCopiedMac(false), 2000);
+      } else {
+        setCopiedKey(true);
+        setTimeout(() => setCopiedKey(false), 2000);
+      }
+    } catch {}
+  };
+
+  const handleCheckCloud = async () => {
+    setIsCheckingCloud(true);
+    setCloudStatus(null);
+    const found = await checkRemotePlaylist();
+    setIsCheckingCloud(false);
+    if (found) {
+      setCloudStatus('Lista encontrada e sincronizada com sucesso!');
+    } else {
+      setCloudStatus('Nenhuma lista foi enviada pelo portal ainda para este MAC.');
+    }
+  };
 
   // Xtream Form State
   const [serverUrl, setServerUrl] = useState('');
@@ -90,41 +124,55 @@ export const ConnectModal: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="grid grid-cols-3 border-b border-tv-border bg-tv-bg/50 shrink-0">
+        <div className="grid grid-cols-4 border-b border-tv-border bg-tv-bg/50 shrink-0">
+          <button
+            onClick={() => {
+              setActiveTab('mac');
+              setErrorMessage(null);
+            }}
+            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition-all cursor-pointer ${
+              activeTab === 'mac'
+                ? 'border-blue-500 text-blue-400 bg-tv-surface'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Tv className="w-4 h-4" />
+            <span className="hidden xs:inline">Ativar</span> MAC
+          </button>
           <button
             onClick={() => {
               setActiveTab('xtream');
               setErrorMessage(null);
             }}
-            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
+            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition-all cursor-pointer ${
               activeTab === 'xtream'
                 ? 'border-blue-500 text-blue-400 bg-tv-surface'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Server className="w-4 h-4" />
-            Xtream Codes
+            Xtream
           </button>
           <button
             onClick={() => {
               setActiveTab('m3u');
               setErrorMessage(null);
             }}
-            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
+            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition-all cursor-pointer ${
               activeTab === 'm3u'
                 ? 'border-blue-500 text-blue-400 bg-tv-surface'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Link className="w-4 h-4" />
-            Lista M3U / URL
+            M3U URL
           </button>
           <button
             onClick={() => {
               setActiveTab('saved');
               setErrorMessage(null);
             }}
-            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-2 border-b-2 transition-all cursor-pointer ${
+            className={`py-3 text-xs md:text-sm font-semibold flex items-center justify-center gap-1.5 sm:gap-2 border-b-2 transition-all cursor-pointer ${
               activeTab === 'saved'
                 ? 'border-blue-500 text-blue-400 bg-tv-surface'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -140,6 +188,112 @@ export const ConnectModal: React.FC = () => {
           {errorMessage && (
             <div className="mb-5 p-3.5 bg-red-500/15 border border-red-500/30 rounded-xl text-red-300 text-xs md:text-sm">
               {errorMessage}
+            </div>
+          )}
+
+          {/* TAB 0: ATIVAÇÃO POR MAC E SITE */}
+          {activeTab === 'mac' && (
+            <div className="space-y-4">
+              <div className="bg-tv-surface/80 border border-tv-border rounded-2xl p-4 sm:p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                    <Tv className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-base text-white">Carregamento Remoto por Site</h3>
+                    <p className="text-xs text-slate-400">
+                      Adicione sua lista pelo celular ou computador sem digitar links no controle
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Endereço MAC */}
+                  <div className="bg-tv-card border border-tv-border p-3.5 rounded-xl">
+                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                      Endereço MAC
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-sm sm:text-base font-bold text-white tracking-widest">
+                        {deviceInfo.mac}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(deviceInfo.mac, 'mac')}
+                        className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 bg-tv-surface rounded cursor-pointer"
+                      >
+                        {copiedMac ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Chave (KEY) */}
+                  <div className="bg-tv-card border border-tv-border p-3.5 rounded-xl">
+                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                      Chave do Dispositivo (KEY)
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-sm sm:text-base font-bold text-emerald-400 tracking-widest">
+                        {deviceInfo.key}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(deviceInfo.key, 'key')}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 font-medium px-2 py-1 bg-tv-surface rounded cursor-pointer"
+                      >
+                        {copiedKey ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {cloudStatus && (
+                  <div
+                    className={`p-3 rounded-xl border text-xs ${
+                      cloudStatus.includes('sucesso')
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                        : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                    }`}
+                  >
+                    {cloudStatus}
+                  </div>
+                )}
+
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs text-slate-300 leading-relaxed bg-tv-card/60 p-3 rounded-xl border border-tv-border/50">
+                    <span className="font-semibold text-white block mb-1">Como adicionar sua lista:</span>
+                    1. Acesse o portal pelo seu navegador: <br />
+                    <code className="text-blue-400 font-mono text-[11px] block my-1">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/?portal=true` : 'seusite.com/?portal=true'}
+                    </code>
+                    2. Insira o <strong className="text-white">MAC</strong> e a <strong className="text-emerald-400">KEY</strong> acima e cole a URL da sua playlist.
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleCheckCloud}
+                      disabled={isCheckingCloud}
+                      className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs tracking-wide shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isCheckingCloud ? 'animate-spin' : ''}`} />
+                      <span>{isCheckingCloud ? 'Verificando nuvem...' : 'Sincronizar Lista da Nuvem'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `?portal=true&mac=${encodeURIComponent(deviceInfo.mac)}&key=${encodeURIComponent(deviceInfo.key)}`;
+                        window.open(url, '_blank');
+                      }}
+                      className="w-full sm:w-auto py-3 px-4 rounded-xl bg-tv-card hover:bg-tv-border border border-tv-border text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Abrir Portal Web</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -335,17 +489,20 @@ export const ConnectModal: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {isActive && playlist.type !== 'demo' && (
+                          <button
+                            onClick={() => refreshActivePlaylist()}
+                            disabled={isLoading}
+                            className="px-2.5 py-1.5 bg-tv-surface hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                            title="Recarregar lista do servidor e atualizar cache"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-blue-400' : ''}`} />
+                            <span>Atualizar</span>
+                          </button>
+                        )}
                         {!isActive && (
                           <button
-                            onClick={() => {
-                              if (playlist.type === 'xtream' && playlist.credentials) {
-                                connectXtream(playlist.credentials, playlist.name);
-                              } else if (playlist.type === 'm3u_url' && playlist.url) {
-                                connectM3UUrl(playlist.url, playlist.name);
-                              } else if (playlist.type === 'demo') {
-                                loadDemoData();
-                              }
-                            }}
+                            onClick={() => activateSavedPlaylist(playlist)}
                             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                           >
                             Ativar

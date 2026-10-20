@@ -1,4 +1,6 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
+import { WebPortalView } from './components/Portal/WebPortalView';
 import { IptvProvider, useIptv } from './context/IptvContext';
 import { Navbar } from './components/Common/Navbar';
 import { HomeView } from './components/Views/HomeView';
@@ -159,6 +161,38 @@ const MainLayout: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  const [showPortal, setShowPortal] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const search = window.location.search || '';
+      const hash = window.location.hash || '';
+      return search.includes('portal') || hash.includes('portal');
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const search = window.location.search || '';
+      const hash = window.location.hash || '';
+      setShowPortal(search.includes('portal') || hash.includes('portal'));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  if (showPortal) {
+    return (
+      <WebPortalView
+        onBackToApp={() => {
+          if (typeof window !== 'undefined') {
+            window.history.pushState({}, '', window.location.pathname);
+          }
+          setShowPortal(false);
+        }}
+      />
+    );
+  }
+
   return (
     <IptvProvider>
       <MainLayout />

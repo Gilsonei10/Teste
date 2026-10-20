@@ -10,6 +10,9 @@ import {
   XtreamCredentials,
 } from '../types/iptv';
 import { StorageService } from '../services/storageService';
+import { CacheService } from '../services/cacheService';
+import { DeviceService } from '../services/deviceService';
+import { CloudPlaylistService } from '../services/cloudPlaylistService';
 import { XtreamService } from '../services/xtreamService';
 import { parseM3U } from '../services/m3uParser';
 import { isDirectNetworkEnvironment, isNativeEnvironment } from '../utils/env';
@@ -73,6 +76,8 @@ interface IptvContextType {
   connectM3UUrl: (url: string, name?: string) => Promise<void>;
   connectM3UFile: (content: string, name?: string) => Promise<void>;
   refreshActivePlaylist: () => Promise<{ liveChannels: LiveChannel[] } | null>;
+  activateSavedPlaylist: (playlist: SavedPlaylist) => Promise<void>;
+  checkRemotePlaylist: () => Promise<boolean>;
   loadDemoData: () => void;
   disconnectPlaylist: () => void;
   removeSavedPlaylist: (id: string) => void;
@@ -244,6 +249,19 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setActivePlaylistState(saved);
         setSavedPlaylists(StorageService.getPlaylists());
         setIsConnectModalOpen(false);
+
+        // Salva dados no cache persistente para abrir instantaneamente nas próximas vezes
+        CacheService.savePlaylistCache({
+          playlistId: saved.id,
+          liveCategories: liveCats,
+          liveChannels: liveStreams,
+          movieCategories: movieCats,
+          movies: movieStreams,
+          seriesCategories: seriesCats,
+          seriesList: seriesItems,
+          savedAt: Date.now(),
+        }).catch(e => console.warn('[Cache] Erro ao salvar lista:', e));
+
         return true;
       } catch (err: any) {
         console.error(err);
@@ -401,6 +419,18 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setActivePlaylistState(saved);
         setSavedPlaylists(StorageService.getPlaylists());
         setIsConnectModalOpen(false);
+
+        // Salva dados no cache persistente para abrir instantaneamente nas próximas vezes
+        CacheService.savePlaylistCache({
+          playlistId: saved.id,
+          liveCategories: parsed.liveCategories,
+          liveChannels: parsed.liveChannels,
+          movieCategories: parsed.movieCategories,
+          movies: parsed.movies,
+          seriesCategories: parsed.seriesCategories,
+          seriesList: parsed.series,
+          savedAt: Date.now(),
+        }).catch(e => console.warn('[Cache] Erro ao salvar lista:', e));
       } catch (err: any) {
         console.error(err);
         setErrorMessage(err.message || 'Erro ao carregar lista M3U.');
@@ -415,55 +445,63 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const active = StorageService.getActivePlaylist();
     if (!active) return null;
 
+    if (active.type === 'xtream' && active.credentials) {
+      await connectXtream(active.credentials, active.name);
+      return null;
+    }
     if (active.type === 'm3u_url' && active.url) {
-      try {
-        let text = '';
-        if (isNativeEnvironment()) {
-          const capRes = await CapacitorHttp.get({
-            url: active.url,
-            headers: { 'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18' },
-            responseType: 'text',
-          });
-          if (capRes.status >= 200 && capRes.status < 300) {
-            text = typeof capRes.data === 'string' ? capRes.data : JSON.stringify(capRes.data);
-          }
-        } else {
-          let res: Response;
-          const shouldUseProxy =
-            settings.useCorsProxy &&
-            settings.corsProxyUrl &&
-            !isDirectNetworkEnvironment() &&
-            !(settings.corsProxyUrl.startsWith('/') && isNativeEnvironment());
-          if (shouldUseProxy) {
-            try {
-              res = await fetch(`${settings.corsProxyUrl}${encodeURIComponent(active.url)}`);
-              if (!res.ok) res = await fetch(active.url);
-            } catch {
-              res = await fetch(active.url);
-            }
-          } else {
-            res = await fetch(active.url);
-          }
-          if (res.ok) {
-            text = await res.text();
-          }
-        }
-
-        if (text) {
-          const parsed = parseM3U(text);
-          if (parsed.liveChannels.length > 0) {
-            setLiveChannels(parsed.liveChannels);
-            setMovies(parsed.movies);
-            setSeriesList(parsed.series);
-            return parsed;
-          }
-        }
-      } catch (e) {
-        console.warn('Background token refresh failed', e);
-      }
+      await connectM3UUrl(active.url, active.name);
+      return null;
     }
     return null;
-  }, [settings]);
+  }, [connectXtream, connectM3UUrl]);
+
+  const activateSavedPlaylist = useCallback(
+    async (playlist: SavedPlaylist) => {
+      if (playlist.type === 'demo') {
+        loadDemoData();
+        setIsConnectModalOpen(false);
+        return;
+      }
+
+      // Tenta abrir instantaneamente pelo cache sem nenhum carregamento de tela
+      try {
+        const cached = await CacheService.getPlaylistCache(playlist.id);
+        if (
+          cached &&
+          (cached.liveChannels?.length > 0 || cached.movies?.length > 0 || cached.seriesList?.length > 0)
+        ) {
+          StorageService.setActivePlaylist(playlist);
+          setActivePlaylistState(playlist);
+          setLiveCategories(cached.liveCategories || []);
+          setLiveChannels(cached.liveChannels || []);
+          setMovieCategories(cached.movieCategories || []);
+          setMovies(cached.movies || []);
+          setSeriesCategories(cached.seriesCategories || []);
+          setSeriesList(cached.seriesList || []);
+
+          if (playlist.type === 'xtream' && playlist.credentials) {
+            const client = new XtreamService(playlist.credentials, settings);
+            setXtreamInstance(client);
+          } else {
+            setXtreamInstance(null);
+          }
+          setIsConnectModalOpen(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('Erro ao restaurar lista salva do cache:', err);
+      }
+
+      // Se ainda não estiver em cache, conecta buscando os dados
+      if (playlist.type === 'xtream' && playlist.credentials) {
+        await connectXtream(playlist.credentials, playlist.name);
+      } else if (playlist.type === 'm3u_url' && playlist.url) {
+        await connectM3UUrl(playlist.url, playlist.name);
+      }
+    },
+    [settings, loadDemoData, connectXtream, connectM3UUrl]
+  );
 
   const connectM3UFile = useCallback(
     async (content: string, name?: string) => {
@@ -497,6 +535,18 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setActivePlaylistState(saved);
         setSavedPlaylists(StorageService.getPlaylists());
         setIsConnectModalOpen(false);
+
+        // Salva dados no cache persistente para abrir instantaneamente nas próximas vezes
+        CacheService.savePlaylistCache({
+          playlistId: saved.id,
+          liveCategories: parsed.liveCategories,
+          liveChannels: parsed.liveChannels,
+          movieCategories: parsed.movieCategories,
+          movies: parsed.movies,
+          seriesCategories: parsed.seriesCategories,
+          seriesList: parsed.series,
+          savedAt: Date.now(),
+        }).catch(e => console.warn('[Cache] Erro ao salvar lista:', e));
       } catch (err: any) {
         console.error(err);
         setErrorMessage(err.message || 'Erro ao processar o arquivo M3U.');
@@ -523,6 +573,7 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const removeSavedPlaylist = useCallback((id: string) => {
     StorageService.removePlaylist(id);
+    CacheService.removePlaylistCache(id);
     setSavedPlaylists(StorageService.getPlaylists());
     const active = StorageService.getActivePlaylist();
     if (!active) {
@@ -683,6 +734,29 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
     playLiveChannel(liveChannels[prevIdx]);
   }, [currentPlaying, liveChannels, playLiveChannel]);
 
+  // Sincronização remota via MAC e KEY da nuvem
+  const checkRemotePlaylist = useCallback(async (): Promise<boolean> => {
+    try {
+      const { mac, key } = DeviceService.getDeviceInfo();
+      const remote = await CloudPlaylistService.getRemotePlaylist(mac, key);
+      if (remote) {
+        if (remote.type === 'xtream' && remote.server_url && remote.username && remote.password) {
+          const success = await connectXtream(
+            { serverUrl: remote.server_url, username: remote.username, password: remote.password },
+            remote.name || 'Lista Nuvem'
+          );
+          return success;
+        } else if (remote.type === 'm3u_url' && remote.url) {
+          await connectM3UUrl(remote.url, remote.name || 'Lista Nuvem');
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('Falha ao verificar lista remota:', e);
+    }
+    return false;
+  }, [connectXtream, connectM3UUrl]);
+
   // Favorites
   const toggleFavorite = useCallback((type: 'live' | 'movies' | 'series', id: string) => {
     StorageService.toggleFavorite(type, id);
@@ -711,18 +785,56 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    const active = StorageService.getActivePlaylist();
-    if (active) {
+    const loadInitialData = async () => {
+      const active = StorageService.getActivePlaylist();
+      if (!active) {
+        const found = await checkRemotePlaylist();
+        if (!found) {
+          loadDemoData();
+        }
+        return;
+      }
+
       if (active.type === 'demo') {
         loadDemoData();
-      } else if (active.type === 'xtream' && active.credentials) {
+        return;
+      }
+
+      // 1. Tenta carregar do cache para abrir instantaneamente com as listas já prontas
+      try {
+        const cached = await CacheService.getPlaylistCache(active.id);
+        if (
+          cached &&
+          (cached.liveChannels?.length > 0 || cached.movies?.length > 0 || cached.seriesList?.length > 0)
+        ) {
+          setLiveCategories(cached.liveCategories || []);
+          setLiveChannels(cached.liveChannels || []);
+          setMovieCategories(cached.movieCategories || []);
+          setMovies(cached.movies || []);
+          setSeriesCategories(cached.seriesCategories || []);
+          setSeriesList(cached.seriesList || []);
+
+          if (active.type === 'xtream' && active.credentials) {
+            const client = new XtreamService(active.credentials, settings);
+            setXtreamInstance(client);
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar cache na inicialização:', err);
+      }
+
+      // 2. Se for a primeira vez (sem cache salvo), conecta e baixa normalmente
+      if (active.type === 'xtream' && active.credentials) {
         connectXtream(active.credentials, active.name);
       } else if (active.type === 'm3u_url' && active.url) {
         connectM3UUrl(active.url, active.name);
+      } else {
+        loadDemoData();
       }
-    } else {
-      loadDemoData();
-    }
+    };
+
+    loadInitialData();
   }, []);
 
   return (
@@ -754,6 +866,8 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         connectM3UUrl,
         connectM3UFile,
         refreshActivePlaylist,
+        activateSavedPlaylist,
+        checkRemotePlaylist,
         loadDemoData,
         disconnectPlaylist,
         removeSavedPlaylist,

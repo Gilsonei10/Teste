@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { TopographyPoint, BaseStation, ReferenceLevelMark, Triangle, ContourSegment, ContourSettings } from '../types/topography';
-import { ZoomIn, ZoomOut, Maximize2, Box, Globe, ArrowLeftRight, AlertTriangle } from 'lucide-react';
+import { Maximize2, Box, Globe, ArrowLeftRight, AlertTriangle, Plus, Minus } from 'lucide-react';
 import { utmToLatLon, latLonToUtm, latLonToTile, tileToLatLonBounds } from '../utils/geodesy';
 
 interface TopographyCanvasProps {
@@ -184,6 +184,23 @@ export const TopographyCanvas: React.FC<TopographyCanvasProps> = ({
       y: mouseY - (mouseY - offset.y) * (newScale / scale),
     });
     setScale(newScale);
+  };
+
+  // Zoom slider change centered around screen center
+  const handleZoomChange = (newScale: number) => {
+    const clampedScale = Math.max(0.001, Math.min(1000, newScale));
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      setScale(clampedScale);
+      return;
+    }
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    setOffset((prev) => ({
+      x: cx - (cx - prev.x) * (clampedScale / scale),
+      y: cy - (cy - prev.y) * (clampedScale / scale),
+    }));
+    setScale(clampedScale);
   };
 
   // Mouse Down (Drag start)
@@ -586,22 +603,6 @@ export const TopographyCanvas: React.FC<TopographyCanvasProps> = ({
       {/* Top Floating Control Bar */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-lg p-1.5 shadow-lg">
         <button
-          onClick={() => setScale((s) => s * 1.25)}
-          className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition cursor-pointer"
-          title="Zoom In"
-        >
-          <ZoomIn className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={() => setScale((s) => s * 0.8)}
-          className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition cursor-pointer"
-          title="Zoom Out"
-        >
-          <ZoomOut className="w-4 h-4" />
-        </button>
-
-        <button
           onClick={fitToExtents}
           className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition cursor-pointer"
           title="Ajustar à Tela (Zoom Extents)"
@@ -695,6 +696,43 @@ export const TopographyCanvas: React.FC<TopographyCanvasProps> = ({
           </div>
         </div>
       )}
+
+      {/* Right Vertical Zoom Scrollbar / Slider (Barra de Rolagem de Zoom) */}
+      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-1.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl py-2 px-1.5 shadow-2xl select-none">
+        <button
+          onClick={() => handleZoomChange(scale * 1.25)}
+          className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition cursor-pointer"
+          title="Aproximar (+)"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+
+        <div className="py-1 flex items-center justify-center h-28">
+          <input
+            type="range"
+            min={-6}
+            max={8}
+            step={0.05}
+            value={Math.max(-6, Math.min(8, Math.log2(scale)))}
+            onChange={(e) => handleZoomChange(Math.pow(2, parseFloat(e.target.value)))}
+            className="h-24 w-1.5 accent-cyan-500 cursor-pointer rounded-full bg-slate-700 hover:bg-slate-600 transition"
+            style={{
+              writingMode: 'vertical-lr',
+              direction: 'rtl',
+              WebkitAppearance: 'slider-vertical',
+            }}
+            title={`Zoom: ${(scale * 100).toFixed(0)}%`}
+          />
+        </div>
+
+        <button
+          onClick={() => handleZoomChange(scale * 0.8)}
+          className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition cursor-pointer"
+          title="Afastar (-)"
+        >
+          <Minus className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {/* Bottom Floating Legend / Coordinates Bar */}
       <div className="absolute bottom-3 right-3 z-10 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-300 flex items-center gap-4 shadow-lg">
