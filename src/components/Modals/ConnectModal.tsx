@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useIptv } from '../../context/IptvContext';
 import { Server, Link, FileText, Play, X, Trash2, CheckCircle2, Sparkles, Globe, Tv, RefreshCw, ExternalLink } from 'lucide-react';
 import { DeviceService } from '../../services/deviceService';
+import { CloudPlaylistService } from '../../services/cloudPlaylistService';
 
 export const ConnectModal: React.FC = () => {
   const {
@@ -56,6 +57,31 @@ export const ConnectModal: React.FC = () => {
       setCloudStatus('Nenhuma lista foi enviada pelo portal ainda para este MAC.');
     }
   };
+
+  // Escuta em tempo real se uma nova lista for enviada pelo portal
+  useEffect(() => {
+    if (!isConnectModalOpen || activeTab !== 'mac') return;
+
+    const unsubscribe = CloudPlaylistService.listenForRemotePlaylist(deviceInfo.mac, async (data) => {
+      setCloudStatus('Nova lista recebida pelo portal! Carregando...');
+      try {
+        if (data.type === 'xtream' && data.server_url && data.username && data.password) {
+          await connectXtream(
+            { serverUrl: data.server_url, username: data.username, password: data.password },
+            data.name || 'Lista Nuvem'
+          );
+        } else if (data.type === 'm3u_url' && data.url) {
+          await connectM3UUrl(data.url, data.name || 'Lista Nuvem');
+        }
+      } catch (err: any) {
+        setCloudStatus(`Erro ao carregar lista: ${err.message}`);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isConnectModalOpen, activeTab, deviceInfo.mac, connectXtream, connectM3UUrl]);
+
+
 
   // Xtream Form State
   const [serverUrl, setServerUrl] = useState('');
