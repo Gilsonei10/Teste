@@ -264,6 +264,8 @@ export default defineConfig({
         '**/dist/**',
         '**/*.exe',
         '**/*.apk',
+        '**/*.aab',
+        '**/*.keystore',
         '**/*.blockmap',
         '**/*.ico',
       ],
