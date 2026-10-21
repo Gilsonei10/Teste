@@ -103,9 +103,11 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
       {/* Top Bar with brand and back button */}
       <div className="max-w-6xl w-full mx-auto flex items-center justify-between pb-8">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Tv className="w-5 h-5 text-white" />
-          </div>
+          <img
+            src="./icon.png"
+            alt="Play Live IPTV"
+            className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-blue-500/20 border border-blue-500/30"
+          />
           <div>
             <h1 className="text-xl font-black tracking-tight text-white leading-none">
               Play Live <span className="text-blue-500">IPTV</span>

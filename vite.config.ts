@@ -255,5 +255,18 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    watch: {
+      ignored: [
+        '**/release-desktop/**',
+        '**/release-webos/**',
+        '**/android/**',
+        '**/downloads/**',
+        '**/dist/**',
+        '**/*.exe',
+        '**/*.apk',
+        '**/*.blockmap',
+        '**/*.ico',
+      ],
+    },
   },
 });

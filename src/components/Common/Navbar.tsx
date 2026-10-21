@@ -37,9 +37,11 @@ export const Navbar: React.FC = () => {
           className="flex items-center gap-2 sm:gap-2.5 text-left outline-none rounded-xl focus:ring-2 focus:ring-blue-400 group cursor-pointer"
           title="Ir para o Início"
         >
-          <div className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform shrink-0">
-            <Tv className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-          </div>
+          <img
+            src="./icon.png"
+            alt="Play Live IPTV"
+            className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-lg sm:rounded-xl object-cover shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform shrink-0 border border-blue-500/30"
+          />
           <div className="hidden sm:block">
             <h1 className="font-extrabold text-sm sm:text-base md:text-lg tracking-tight text-white leading-none">
               Play Live <span className="text-blue-500">IPTV</span>

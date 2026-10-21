@@ -1,0 +1,35 @@
+{
+  "appId": "com.playlive.iptv",
+  "productName": "Play Live IPTV",
+  "npmRebuild": false,
+  "nodeGypRebuild": false,
+  "asar": true,
+  "directories": {
+    "output": "release-desktop"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "public/**/*",
+    "package.json",
+    "!node_modules/**/*",
+    "!android/**/*",
+    "!webos/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Play Live IPTV"
+  }
+}
