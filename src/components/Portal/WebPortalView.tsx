@@ -44,8 +44,12 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
     e.preventDefault();
     setFeedback(null);
 
-    if (!mac || mac.length < 17) {
-      setFeedback({ type: 'error', message: 'Por favor, informe um endereço MAC válido (ex: 00:1A:79:B4:C2:10).' });
+    const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+    if (!mac || !macRegex.test(mac.trim())) {
+      setFeedback({
+        type: 'error',
+        message: 'Formato de MAC inválido. O formato deve ser XX:XX:XX:XX:XX:XX (ex: 00:1A:79:B4:C2:10).',
+      });
       return;
     }
     if (activeTab !== 'url' && !deviceKey) {

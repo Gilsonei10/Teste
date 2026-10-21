@@ -62,6 +62,7 @@ export const ConnectModal: React.FC = () => {
   useEffect(() => {
     if (!isConnectModalOpen || activeTab !== 'mac') return;
 
+    CloudPlaylistService.registerDevicePresence(deviceInfo.mac, deviceInfo.key).catch(() => {});
     const unsubscribe = CloudPlaylistService.listenForRemotePlaylist(deviceInfo.mac, async (data) => {
       setCloudStatus('Nova lista recebida pelo portal! Carregando...');
       try {

@@ -738,6 +738,8 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkRemotePlaylist = useCallback(async (): Promise<boolean> => {
     try {
       const { mac, key } = DeviceService.getDeviceInfo();
+      // Registra presenca ativa do dispositivo na nuvem para validacao no portal web
+      CloudPlaylistService.registerDevicePresence(mac, key).catch(() => {});
       const remote = await CloudPlaylistService.getRemotePlaylist(mac, key);
       if (remote) {
         if (remote.type === 'xtream' && remote.server_url && remote.username && remote.password) {

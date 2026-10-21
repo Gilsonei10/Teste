@@ -31,7 +31,136 @@ function getTopicForMac(mac: string): string {
   return `playlive_mac_${clean}`;
 }
 
+function getDeviceTopicForMac(mac: string): string {
+  const clean = mac.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  return `playlive_device_${clean}`;
+}
+
 export const CloudPlaylistService = {
+  /**
+   * Valida se a string é um endereço MAC estrito de 12 hexadecimais (ex: 00:1A:79:B4:C2:10).
+   */
+  isValidMacFormat(mac: string): boolean {
+    const clean = (mac || '').trim();
+    return /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(clean);
+  },
+
+  /**
+   * Registra a presença do aplicativo neste dispositivo na nuvem para permitir validação no portal web.
+   */
+  async registerDevicePresence(mac: string, key?: string): Promise<void> {
+    const cleanMac = (mac || '').trim().toUpperCase();
+    if (!this.isValidMacFormat(cleanMac)) return;
+
+    // Salva localmente
+    try {
+      const registered = JSON.parse(localStorage.getItem('playlive_registered_devices') || '{}');
+      registered[cleanMac] = {
+        mac: cleanMac,
+        key: key || '',
+        updated_at: new Date().toISOString(),
+      };
+      localStorage.setItem('playlive_registered_devices', JSON.stringify(registered));
+    } catch {}
+
+    // Publica no Relay Global (ntfy.sh) com retenção/cache
+    try {
+      const topic = getDeviceTopicForMac(cleanMac);
+      await fetch(`${RELAY_BASE}/${topic}`, {
+        method: 'POST',
+        headers: {
+          'Title': 'Device Registered',
+          'Tags': 'tv,playlive',
+        },
+        body: JSON.stringify({
+          mac: cleanMac,
+          device_key: key || '',
+          registered_at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn('[CloudService] Falha ao registrar dispositivo no relay:', e);
+    }
+  },
+
+  /**
+   * Verifica se o dispositivo foi previamente registrado pelo aplicativo Play Live.
+   */
+  async verifyDeviceExists(mac: string): Promise<{ exists: boolean; message?: string }> {
+    const cleanMac = (mac || '').trim().toUpperCase();
+
+    // 1. Validação estrita de formato
+    if (!this.isValidMacFormat(cleanMac)) {
+      return {
+        exists: false,
+        message: 'Formato de MAC inválido. O formato deve ser XX:XX:XX:XX:XX:XX (apenas números de 0 a 9 e letras de A a F).',
+      };
+    }
+
+    // 2. Verifica se o próprio navegador / dispositivo local possui este MAC
+    try {
+      const registered = JSON.parse(localStorage.getItem('playlive_registered_devices') || '{}');
+      if (registered[cleanMac]) {
+        return { exists: true };
+      }
+      const myDevice = localStorage.getItem('playlive_device_mac');
+      if (myDevice && myDevice.trim().toUpperCase() === cleanMac) {
+        return { exists: true };
+      }
+    } catch {}
+
+    // 3. Consulta no Relay Global se o aplicativo já foi aberto nesta TV ou celular
+    try {
+      const topic = getDeviceTopicForMac(cleanMac);
+      const res = await fetch(`${RELAY_BASE}/${topic}/json?poll=1`, { cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        if (text.includes('"event":"message"')) {
+          return { exists: true };
+        }
+      }
+    } catch (e) {
+      console.warn('[CloudService] Erro ao consultar presença do dispositivo:', e);
+    }
+
+    // 4. Fallback: consulta se já há alguma playlist cadastrada para este MAC
+    try {
+      const playlistTopic = getTopicForMac(cleanMac);
+      const res = await fetch(`${RELAY_BASE}/${playlistTopic}/json?poll=1`, { cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        if (text.includes('"event":"message"')) {
+          return { exists: true };
+        }
+      }
+    } catch {}
+
+    // 5. Consulta no Supabase se estiver configurado
+    const config = this.getSupabaseConfig();
+    if (config.isConfigured) {
+      try {
+        const queryUrl = `${config.url}/rest/v1/playlists?mac=eq.${encodeURIComponent(cleanMac)}&select=mac`;
+        const res = await fetch(queryUrl, {
+          method: 'GET',
+          headers: {
+            apikey: config.key,
+            Authorization: `Bearer ${config.key}`,
+          },
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0) {
+            return { exists: true };
+          }
+        }
+      } catch {}
+    }
+
+    return {
+      exists: false,
+      message: 'Dispositivo / MAC não encontrado! Abra o aplicativo Play Live na sua TV para ativar o seu MAC antes de enviar.',
+    };
+  },
   getSupabaseConfig(): { url: string; key: string; isConfigured: boolean } {
     try {
       const url = localStorage.getItem(STORAGE_KEYS.SUPABASE_URL) || DEFAULT_SUPABASE_URL;
@@ -134,8 +263,13 @@ export const CloudPlaylistService = {
     const cleanMac = data.mac.trim().toUpperCase();
     const cleanKey = (data.device_key || '').trim();
 
-    if (!cleanMac || cleanMac.length < 10) {
-      return { success: false, message: 'Endereço MAC inválido.' };
+    // 1. Validação prévia de existência e formato do MAC
+    const verification = await this.verifyDeviceExists(cleanMac);
+    if (!verification.exists) {
+      return {
+        success: false,
+        message: verification.message || 'Endereço MAC não encontrado ou incorreto.',
+      };
     }
 
     const payload: RemotePlaylistData = {
