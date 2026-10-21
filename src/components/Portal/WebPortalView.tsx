@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Tv, User, Link2, CheckCircle2, AlertCircle, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Tv, User, Link2, CheckCircle2, AlertCircle, ArrowLeft, ArrowDown, Loader2, Sparkles, Search } from 'lucide-react';
 import { CloudPlaylistService } from '../../services/cloudPlaylistService';
 
 type PortalTab = 'url' | 'xtream' | 'code' | 'check';
 
 export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackToApp }) => {
   const [activeTab, setActiveTab] = useState<PortalTab>('url');
+  const formCardRef = useRef<HTMLDivElement>(null);
 
   // Form Fields
   const [mac, setMac] = useState('');
@@ -40,6 +41,17 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
     setMac(parts ? parts.join(':') : cleaned);
   };
 
+  const handleSelectTab = (tab: PortalTab) => {
+    setActiveTab(tab);
+    setFeedback(null);
+    // No celular, rola suavemente para o formulário para o usuário ver os campos imediatamente
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setTimeout(() => {
+        formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
@@ -54,6 +66,32 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
     }
     if (activeTab !== 'url' && !deviceKey) {
       setFeedback({ type: 'error', message: 'A chave do dispositivo (Key) de 6 dígitos é obrigatória.' });
+      return;
+    }
+
+    if (activeTab === 'check') {
+      setIsSubmitting(true);
+      const verifyRes = await CloudPlaylistService.verifyDeviceExists(mac);
+      if (!verifyRes.exists) {
+        setFeedback({
+          type: 'error',
+          message: verifyRes.message || 'Dispositivo não encontrado. Certifique-se de que o aplicativo Play Live está aberto na sua Smart TV com este MAC.',
+        });
+      } else {
+        const existing = await CloudPlaylistService.getRemotePlaylist(mac, deviceKey);
+        if (existing) {
+          setFeedback({
+            type: 'success',
+            message: `Dispositivo conectado com sucesso! Playlist ativa vinculada: "${existing.name}" (${existing.type === 'xtream' ? 'Xtream Codes' : 'Link M3U'}).`,
+          });
+        } else {
+          setFeedback({
+            type: 'success',
+            message: 'Dispositivo validado e online! Nenhuma lista enviada ainda. Selecione "Carregar playlist com URL" ou "Xtream" acima para enviar sua lista.',
+          });
+        }
+      }
+      setIsSubmitting(false);
       return;
     }
 
@@ -105,7 +143,7 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
   return (
     <div className="min-h-screen w-full bg-[#080d1a] text-slate-100 flex flex-col justify-between p-4 sm:p-8 md:p-12 selection:bg-blue-600 selection:text-white font-sans">
       {/* Top Bar with brand and back button */}
-      <div className="max-w-6xl w-full mx-auto flex items-center justify-between pb-8">
+      <div className="max-w-6xl w-full mx-auto flex items-center justify-between pb-6 sm:pb-8">
         <div className="flex items-center gap-3">
           <img
             src="./icon.png"
@@ -132,29 +170,31 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
       </div>
 
       {/* Main Grid: Left Tabs & Right Form Card */}
-      <div className="max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start my-auto">
+      <div className="max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start my-auto">
         {/* LEFT COLUMN: Options list */}
-        <div className="lg:col-span-5 space-y-6">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Como deseja carregar sua playlist?
-          </h2>
+        <div className="lg:col-span-5 space-y-4 sm:space-y-6">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Como deseja carregar sua playlist?
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Selecione o método desejado abaixo para preencher os dados:
+            </p>
+          </div>
 
           <div className="space-y-3">
             {/* Option 1: Login com MAC e KEY */}
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('check');
-                setFeedback(null);
-              }}
-              className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer relative ${
+              onClick={() => handleSelectTab('check')}
+              className={`w-full p-3.5 sm:p-4 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer relative ${
                 activeTab === 'check'
                   ? 'bg-[#121c35] border-blue-500 shadow-lg shadow-blue-600/10'
                   : 'bg-[#0f172a]/80 border-slate-800 hover:border-slate-700 text-slate-400'
               }`}
             >
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${activeTab === 'check' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-400'}`}>
+              <div className="flex items-center gap-3.5">
+                <div className={`p-2.5 sm:p-3 rounded-xl ${activeTab === 'check' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-400'}`}>
                   <Tv className="w-5 h-5" />
                 </div>
                 <div>
@@ -163,25 +203,27 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
                 </div>
               </div>
               {activeTab === 'check' && (
-                <div className="w-0 h-0 border-y-8 border-y-transparent border-l-[10px] border-l-blue-500 absolute -right-2.5 top-1/2 -translate-y-1/2 hidden lg:block" />
+                <>
+                  <div className="w-0 h-0 border-y-8 border-y-transparent border-l-[10px] border-l-blue-500 absolute -right-2.5 top-1/2 -translate-y-1/2 hidden lg:block" />
+                  <span className="lg:hidden text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-semibold">
+                    Selecionado ↓
+                  </span>
+                </>
               )}
             </button>
 
             {/* Option 2: Carregar playlist com Xtream */}
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('xtream');
-                setFeedback(null);
-              }}
-              className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer relative ${
+              onClick={() => handleSelectTab('xtream')}
+              className={`w-full p-3.5 sm:p-4 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer relative ${
                 activeTab === 'xtream'
                   ? 'bg-[#121c35] border-blue-500 shadow-lg shadow-blue-600/10'
                   : 'bg-[#0f172a]/80 border-slate-800 hover:border-slate-700 text-slate-400'
               }`}
             >
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${activeTab === 'xtream' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-400'}`}>
+              <div className="flex items-center gap-3.5">
+                <div className={`p-2.5 sm:p-3 rounded-xl ${activeTab === 'xtream' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-400'}`}>
                   <User className="w-5 h-5" />
                 </div>
                 <div>
@@ -190,25 +232,27 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
                 </div>
               </div>
               {activeTab === 'xtream' && (
-                <div className="w-0 h-0 border-y-8 border-y-transparent border-l-[10px] border-l-blue-500 absolute -right-2.5 top-1/2 -translate-y-1/2 hidden lg:block" />
+                <>
+                  <div className="w-0 h-0 border-y-8 border-y-transparent border-l-[10px] border-l-blue-500 absolute -right-2.5 top-1/2 -translate-y-1/2 hidden lg:block" />
+                  <span className="lg:hidden text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-semibold">
+                    Selecionado ↓
+                  </span>
+                </>
               )}
             </button>
 
             {/* Option 3: Carregar playlist com URL */}
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('url');
-                setFeedback(null);
-              }}
-              className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer relative ${
+              onClick={() => handleSelectTab('url')}
+              className={`w-full p-3.5 sm:p-4 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer relative ${
                 activeTab === 'url'
                   ? 'bg-[#121c35] border-blue-500 shadow-lg shadow-blue-600/10'
                   : 'bg-[#0f172a]/80 border-slate-800 hover:border-slate-700 text-slate-400'
               }`}
             >
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${activeTab === 'url' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-400'}`}>
+              <div className="flex items-center gap-3.5">
+                <div className={`p-2.5 sm:p-3 rounded-xl ${activeTab === 'url' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-800 text-slate-400'}`}>
                   <Link2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -217,22 +261,50 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
                 </div>
               </div>
               {activeTab === 'url' && (
-                <div className="w-0 h-0 border-y-8 border-y-transparent border-l-[10px] border-l-blue-500 absolute -right-2.5 top-1/2 -translate-y-1/2 hidden lg:block" />
+                <>
+                  <div className="w-0 h-0 border-y-8 border-y-transparent border-l-[10px] border-l-blue-500 absolute -right-2.5 top-1/2 -translate-y-1/2 hidden lg:block" />
+                  <span className="lg:hidden text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-semibold">
+                    Selecionado ↓
+                  </span>
+                </>
               )}
             </button>
+
+            {/* Mobile Jump Button */}
+            <div className="lg:hidden pt-1 flex justify-center">
+              <button
+                type="button"
+                onClick={() => formCardRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-blue-500/10 border border-blue-500/20 transition-all cursor-pointer"
+              >
+                <span>Ir para o formulário de preenchimento</span>
+                <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* RIGHT COLUMN: Action Form Card */}
-        <div className="lg:col-span-7">
+        <div ref={formCardRef} className="lg:col-span-7 scroll-mt-6">
           <div className="bg-[#0f172a]/95 border border-slate-800 rounded-3xl p-6 sm:p-8 md:p-10 shadow-2xl relative backdrop-blur-xl">
             {/* Header info */}
             <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2.5 py-1 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[11px] font-bold uppercase tracking-wider">
+                  {activeTab === 'url' && 'Modo: Playlist M3U'}
+                  {activeTab === 'xtream' && 'Modo: Xtream Codes'}
+                  {activeTab === 'check' && 'Modo: Consulta MAC e KEY'}
+                </span>
+              </div>
               <h3 className="text-lg sm:text-xl font-bold text-white leading-snug">
-                Carregue sua lista de reprodução no aplicativo e desfrute dos benefícios do Play Live
+                {activeTab === 'check'
+                  ? 'Consulte o status do seu dispositivo e listas ativas'
+                  : 'Carregue sua lista de reprodução no aplicativo Play Live'}
               </h3>
               <p className="text-xs text-slate-400 mt-2">
-                Insira o Endereço MAC e a Chave exibidos na tela da sua Smart TV para vincular instantaneamente sua lista.
+                {activeTab === 'check'
+                  ? 'Insira o Endereço MAC e a Chave para consultar a conexão do seu aparelho.'
+                  : 'Insira o Endereço MAC e a Chave exibidos na tela da sua Smart TV para vincular instantaneamente sua lista.'}
               </p>
             </div>
 
@@ -369,9 +441,9 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
               {/* TAB CHECK SPECIFIC */}
               {activeTab === 'check' && (
                 <div className="p-4 rounded-xl bg-blue-600/10 border border-blue-500/20 text-xs text-blue-300 space-y-2">
-                  <p className="font-semibold text-white">Status da Conexão com a TV</p>
+                  <p className="font-semibold text-white">Status da Conexão com o Dispositivo</p>
                   <p>
-                    Com o MAC e a Chave preenchidos acima, você pode verificar se a sua TV já está pronta para receber listas.
+                    Insira o MAC e a Chave e clique em <strong>Consultar Dispositivo</strong> para verificar se a sua TV está online e se já possui uma playlist vinculada.
                   </p>
                 </div>
               )}
@@ -386,7 +458,12 @@ export const WebPortalView: React.FC<{ onBackToApp?: () => void }> = ({ onBackTo
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Processando playlist...</span>
+                      <span>{activeTab === 'check' ? 'Consultando dispositivo...' : 'Processando playlist...'}</span>
+                    </>
+                  ) : activeTab === 'check' ? (
+                    <>
+                      <Search className="w-4 h-4" />
+                      <span>Consultar Dispositivo</span>
                     </>
                   ) : (
                     <>
