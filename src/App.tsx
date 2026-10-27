@@ -64,8 +64,6 @@ const MainLayout: React.FC = () => {
         if (typeof window !== 'undefined') {
           if ((window as any).webOS && typeof (window as any).webOS.platformBack === 'function') {
             (window as any).webOS.platformBack();
-          } else {
-            window.close();
           }
         }
       }
@@ -170,22 +168,48 @@ export const App: React.FC = () => {
     return false;
   });
 
+  const [portalParams, setPortalParams] = useState<{ mac?: string; key?: string }>({});
+
   useEffect(() => {
     const handlePopState = () => {
       const search = window.location.search || '';
       const hash = window.location.hash || '';
       setShowPortal(search.includes('portal') || hash.includes('portal'));
     };
+
+    const handleOpenPortal = (e: Event) => {
+      const customEvent = e as CustomEvent<{ mac?: string; key?: string }>;
+      if (customEvent && customEvent.detail) {
+        setPortalParams(customEvent.detail);
+      }
+      setShowPortal(true);
+    };
+
+    const handleClosePortal = () => {
+      setShowPortal(false);
+    };
+
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('open-portal', handleOpenPortal);
+    window.addEventListener('close-portal', handleClosePortal);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('open-portal', handleOpenPortal);
+      window.removeEventListener('close-portal', handleClosePortal);
+    };
   }, []);
 
   if (showPortal) {
     return (
       <WebPortalView
+        initialMac={portalParams.mac}
+        initialKey={portalParams.key}
         onBackToApp={() => {
           if (typeof window !== 'undefined') {
-            window.history.pushState({}, '', window.location.pathname);
+            try {
+              window.history.pushState({}, '', window.location.pathname);
+            } catch {}
           }
           setShowPortal(false);
         }}

@@ -21,22 +21,29 @@ html, body, #root {
 }
 
 /* Custom Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3b82f6 #0f172a;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: #0f172a;
+  border-left: 1px solid #1e293b;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.4);
+  background: #3b82f6;
   border-radius: 9999px;
+  border: 2px solid #0f172a;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.7);
+  background: #60a5fa;
 }
 
 /* TV Focus Outline for Remote Controls (Samsung Tizen, LG webOS, Android TV) */

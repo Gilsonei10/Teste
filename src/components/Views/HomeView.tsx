@@ -68,16 +68,18 @@ export const HomeView: React.FC = () => {
       {/* Top Header / Greeting & Info */}
       <div className="w-full max-w-6xl mx-auto flex flex-row items-center justify-between gap-2 py-1 sm:py-1.5 border-b border-tv-border/40 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 text-left">
-          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${activePlaylist ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'} shrink-0`} />
           <div>
             <span className="text-[9px] sm:text-xs text-slate-400 font-medium block leading-none mb-0.5">
               Lista Ativa
             </span>
             <span className="text-xs sm:text-sm md:text-base font-bold text-white flex items-center gap-1.5 leading-tight">
-              <span className="truncate max-w-[110px] sm:max-w-xs">{activePlaylist?.name || 'Lista Padrão'}</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[8px] sm:text-[10px] font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
-                {activePlaylist?.type === 'xtream' ? 'Xtream' : 'M3U'}
-              </span>
+              <span className="truncate max-w-[110px] sm:max-w-xs">{activePlaylist?.name || 'Nenhuma lista conectada'}</span>
+              {activePlaylist && (
+                <span className="px-1.5 py-0.2 rounded-full text-[8px] sm:text-[10px] font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
+                  {activePlaylist.type === 'xtream' ? 'Xtream' : 'M3U'}
+                </span>
+              )}
             </span>
           </div>
         </div>

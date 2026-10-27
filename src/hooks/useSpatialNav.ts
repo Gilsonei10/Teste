@@ -298,9 +298,6 @@ export function useSpatialNav({ onBack, onEnter, enabled = true }: SpatialNavOpt
       try {
         window.history.pushState({ app: 'iptv' }, '', window.location.href);
       } catch {}
-      if (onBack) {
-        onBack();
-      }
     };
 
     window.addEventListener('popstate', handlePopState);

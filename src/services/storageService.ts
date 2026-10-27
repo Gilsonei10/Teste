@@ -82,7 +82,7 @@ export const StorageService = {
       if (unique.length !== list.length) {
         localStorage.setItem(STORAGE_KEYS.PLAYLISTS, JSON.stringify(unique));
       }
-      return unique;
+      return unique.filter(p => p.type !== 'demo' && p.id !== 'demo_playlist');
     } catch {
       return [];
     }
@@ -124,7 +124,13 @@ export const StorageService = {
   getActivePlaylist(): SavedPlaylist | null {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_PLAYLIST);
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed: SavedPlaylist = JSON.parse(saved);
+      if (parsed.type === 'demo' || parsed.id === 'demo_playlist') {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_PLAYLIST);
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }

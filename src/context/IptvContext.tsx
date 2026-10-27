@@ -17,14 +17,6 @@ import { XtreamService } from '../services/xtreamService';
 import { parseM3U } from '../services/m3uParser';
 import { isDirectNetworkEnvironment, isNativeEnvironment } from '../utils/env';
 import { CapacitorHttp } from '@capacitor/core';
-import {
-  DEMO_LIVE_CATEGORIES,
-  DEMO_LIVE_CHANNELS,
-  DEMO_MOVIE_CATEGORIES,
-  DEMO_MOVIES,
-  DEMO_SERIES_CATEGORIES,
-  DEMO_SERIES,
-} from '../services/demoData';
 
 export type MainSection = 'home' | 'live' | 'movies' | 'series' | 'favorites';
 
@@ -78,7 +70,6 @@ interface IptvContextType {
   refreshActivePlaylist: () => Promise<{ liveChannels: LiveChannel[] } | null>;
   activateSavedPlaylist: (playlist: SavedPlaylist) => Promise<void>;
   checkRemotePlaylist: () => Promise<boolean>;
-  loadDemoData: () => void;
   disconnectPlaylist: () => void;
   removeSavedPlaylist: (id: string) => void;
 
@@ -174,30 +165,6 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       StorageService.saveSettings(updated);
       return updated;
     });
-  }, []);
-
-  const loadDemoData = useCallback(() => {
-    setIsLoading(true);
-    setLoadingMessage('Carregando canais e mídias de demonstração...');
-    setErrorMessage(null);
-
-    setLiveCategories(DEMO_LIVE_CATEGORIES);
-    setLiveChannels(DEMO_LIVE_CHANNELS);
-    setMovieCategories(DEMO_MOVIE_CATEGORIES);
-    setMovies(DEMO_MOVIES);
-    setSeriesCategories(DEMO_SERIES_CATEGORIES);
-    setSeriesList(DEMO_SERIES);
-
-    const demoPlaylist: SavedPlaylist = {
-      id: 'demo_playlist',
-      name: 'Demonstração Gratuita',
-      type: 'demo',
-      createdAt: Date.now(),
-    };
-    const saved = StorageService.savePlaylist(demoPlaylist);
-    setActivePlaylistState(saved);
-    setSavedPlaylists(StorageService.getPlaylists());
-    setIsLoading(false);
   }, []);
 
   const connectXtream = useCallback(
@@ -459,10 +426,10 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const activateSavedPlaylist = useCallback(
     async (playlist: SavedPlaylist) => {
       if (playlist.type === 'demo') {
-        loadDemoData();
-        setIsConnectModalOpen(false);
-        return;
-      }
+      StorageService.removePlaylist(playlist.id);
+      setIsConnectModalOpen(true);
+      return;
+    }
 
       // Tenta abrir instantaneamente pelo cache sem nenhum carregamento de tela
       try {
@@ -500,7 +467,7 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await connectM3UUrl(playlist.url, playlist.name);
       }
     },
-    [settings, loadDemoData, connectXtream, connectM3UUrl]
+    [settings, connectXtream, connectM3UUrl]
   );
 
   const connectM3UFile = useCallback(
@@ -792,13 +759,14 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!active) {
         const found = await checkRemotePlaylist();
         if (!found) {
-          loadDemoData();
+          setIsConnectModalOpen(true);
         }
         return;
       }
 
       if (active.type === 'demo') {
-        loadDemoData();
+        StorageService.removePlaylist(active.id);
+        setIsConnectModalOpen(true);
         return;
       }
 
@@ -832,7 +800,7 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (active.type === 'm3u_url' && active.url) {
         connectM3UUrl(active.url, active.name);
       } else {
-        loadDemoData();
+        setIsConnectModalOpen(true);
       }
     };
 
@@ -870,7 +838,6 @@ export const IptvProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshActivePlaylist,
         activateSavedPlaylist,
         checkRemotePlaylist,
-        loadDemoData,
         disconnectPlaylist,
         removeSavedPlaylist,
         isLoading,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useIptv } from '../../context/IptvContext';
-import { Server, Link, FileText, Play, X, Trash2, CheckCircle2, Sparkles, Globe, Tv, RefreshCw, ExternalLink } from 'lucide-react';
+import { Server, Link, FileText, Play, X, Trash2, CheckCircle2, Globe, Tv, RefreshCw, ExternalLink } from 'lucide-react';
 import { DeviceService } from '../../services/deviceService';
 import { CloudPlaylistService } from '../../services/cloudPlaylistService';
 
@@ -13,7 +13,7 @@ export const ConnectModal: React.FC = () => {
     connectXtream,
     connectM3UUrl,
     connectM3UFile,
-    loadDemoData,
+
     activateSavedPlaylist,
     refreshActivePlaylist,
     checkRemotePlaylist,
@@ -310,8 +310,13 @@ export const ConnectModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        const url = `?portal=true&mac=${encodeURIComponent(deviceInfo.mac)}&key=${encodeURIComponent(deviceInfo.key)}`;
-                        window.open(url, '_blank');
+                        if (typeof window !== 'undefined') {
+                          window.dispatchEvent(
+                            new CustomEvent('open-portal', {
+                              detail: { mac: deviceInfo.mac, key: deviceInfo.key },
+                            })
+                          );
+                        }
                       }}
                       className="w-full sm:w-auto py-3 px-4 rounded-xl bg-tv-card hover:bg-tv-border border border-tv-border text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
@@ -583,21 +588,6 @@ export const ConnectModal: React.FC = () => {
                 Ativar uma TV
               </button>
             </div>
-          </div>
-
-          {/* Demo Button Footer */}
-          <div className="mt-4 pt-3 border-t border-tv-border flex items-center justify-between">
-            <span className="text-xs text-slate-400">Quer apenas testar o player?</span>
-            <button
-              onClick={() => {
-                loadDemoData();
-                setIsConnectModalOpen(false);
-              }}
-              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Carregar Demonstração Gratuita
-            </button>
           </div>
         </div>
       </div>

@@ -80,8 +80,7 @@ export const Navbar: React.FC = () => {
           data-nav="true"
           onClick={() => {
             if (typeof window !== 'undefined') {
-              window.history.pushState({}, '', '?portal=true');
-              window.dispatchEvent(new PopStateEvent('popstate'));
+              window.dispatchEvent(new CustomEvent('open-portal'));
             }
           }}
           className="flex items-center gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 md:py-2 bg-tv-card hover:bg-tv-border border border-tv-border rounded-lg sm:rounded-xl text-xs sm:text-sm text-slate-200 hover:text-white transition-all focus:ring-2 focus:ring-blue-400 cursor-pointer"
